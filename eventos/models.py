@@ -12,6 +12,7 @@ class Event(models.Model):
     image = models.ImageField(upload_to='event_images/', null=True, blank=True, verbose_name="Imagen")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    has_seats = models.BooleanField(default=False, verbose_name="¿Tiene asientos numerados?")
     
     class Meta:
         verbose_name = "Evento"
@@ -58,6 +59,14 @@ class Ticket(models.Model):
     ticket_code = models.CharField(max_length=255, unique=True, default=uuid.uuid4, verbose_name="Código de entrada")
     is_used = models.BooleanField(default=False, verbose_name="Utilizada")
     
+    # Nuevos campos añadidos
+    seat_number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número de asiento")
+    section = models.CharField(max_length=50, blank=True, null=True, verbose_name="Sección")
+    entry_time = models.DateTimeField(blank=True, null=True, verbose_name="Hora de entrada")
+    exit_time = models.DateTimeField(blank=True, null=True, verbose_name="Hora de salida")
+    expiration_date = models.DateTimeField(blank=True, null=True, verbose_name="Fecha de expiración")
+    is_paid = models.BooleanField(default=False, verbose_name="Pagado")
+    
     class Meta:
         verbose_name = "Entrada"
         verbose_name_plural = "Entradas"
@@ -66,15 +75,47 @@ class Ticket(models.Model):
         return f"Entrada {self.ticket_code} - {self.ticket_type.event.name}"
     
     def save(self, *args, **kwargs):
-        """Sobreescribe el método save para disminuir la cantidad disponible al crear una entrada"""
+        """Sobreescribe el método save para disminuir la cantidad disponible y configurar expiración"""
         if not self.pk:  # Si es una nueva entrada
             ticket_type = self.ticket_type
             if ticket_type.available_quantity > 0:
                 ticket_type.available_quantity -= 1
                 ticket_type.save()
+                
+                # Establecer fecha de expiración (2 horas después del evento)
+                if not self.expiration_date and self.ticket_type.event.event_date:
+                    self.expiration_date = self.ticket_type.event.event_date + timezone.timedelta(hours=2)
             else:
                 raise ValueError("No hay entradas disponibles de este tipo")
         super().save(*args, **kwargs)
+    
+    def is_expired(self):
+        """Comprueba si la entrada ha expirado"""
+        if self.expiration_date:
+            return timezone.now() > self.expiration_date
+        return False
+
+class Payment(models.Model):
+    PAYMENT_STATUS_CHOICES = (
+        ('pending', 'Pendiente'),
+        ('completed', 'Completado'),
+        ('failed', 'Fallido'),
+    )
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Usuario")
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, verbose_name="Entrada")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto")
+    payment_date = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de pago")
+    payment_method = models.CharField(max_length=50, verbose_name="Método de pago")
+    status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending', verbose_name="Estado")
+    transaction_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="ID de transacción")
+    
+    class Meta:
+        verbose_name = "Pago"
+        verbose_name_plural = "Pagos"
+    
+    def __str__(self):
+        return f"Pago {self.id} - {self.user.username} - {self.status}"
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')

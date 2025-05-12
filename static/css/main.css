@@ -1,13 +1,13 @@
 /* Variables */
 :root {
-    --primary-color: #4361ee;
-    --primary-dark: #3a56d4;
-    --secondary-color: #2ec4b6;
-    --success-color: #2ec4b6;
-    --warning-color: #ff9f1c;
-    --danger-color: #e71d36;
+    --primary-color: #343a40; /* Negro suave como principal */
+    --primary-dark: #212529;
+    --secondary-color: #f8f9fa; /* Blanco como secundario */
+    --success-color: #c8e6c9; /* Verde pastel */
+    --warning-color: #fff9c4; /* Amarillo pastel */
+    --danger-color: #ffcdd2; /* Rojo pastel */
     --light-color: #f8f9fa;
-    --dark-color: #212529;
+    --dark-color: #343a40;
     --gray-color: #6c757d;
     
     --font-primary: 'Montserrat', sans-serif;
@@ -65,6 +65,43 @@ a:hover {
     border-color: var(--primary-color);
 }
 
+/* Botones con colores pastel */
+.btn-success {
+    background-color: var(--success-color);
+    border-color: #81c784;
+    color: #2e7d32;
+}
+
+.btn-success:hover {
+    background-color: #a5d6a7;
+    border-color: #66bb6a;
+    color: #1b5e20;
+}
+
+.btn-warning {
+    background-color: var(--warning-color);
+    border-color: #fff176;
+    color: #f57f17;
+}
+
+.btn-warning:hover {
+    background-color: #fff59d;
+    border-color: #ffee58;
+    color: #e65100;
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    border-color: #ef9a9a;
+    color: #c62828;
+}
+
+.btn-danger:hover {
+    background-color: #ef5350;
+    border-color: #e57373;
+    color: #b71c1c;
+}
+
 .section-title {
     margin-bottom: 3rem;
 }
@@ -110,7 +147,7 @@ a:hover {
 /* Hero Section */
 .hero-section {
     padding: 6rem 0 3rem;
-    background-color: #f8f9fa;
+    background-color: var(--light-color);
 }
 
 .hero-section h1 {
@@ -125,7 +162,7 @@ a:hover {
 
 @media (min-width: 768px) {
     .hero-section {
-        padding: 8rem 0 5rem;
+        padding:.8rem 0 5rem;
     }
     
     .hero-section h1 {
@@ -274,7 +311,7 @@ a:hover {
 
 .form-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.2rem rgba(67, 97, 238, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(52, 58, 64, 0.25);
 }
 
 /* Event Detail */
@@ -341,7 +378,7 @@ a:hover {
 }
 
 .ticket-footer {
-    background-color: #f8f9fa;
+    background-color: var(--light-color);
     padding: 1rem;
     border-bottom-left-radius: 0.5rem;
     border-bottom-right-radius: 0.5rem;
@@ -355,6 +392,81 @@ a:hover {
 .ticket-qr img {
     max-width: 150px;
     height: auto;
+}
+
+/* Estilos para el detalle de ticket */
+.ticket-detail {
+    margin-bottom: 2rem;
+}
+
+.qr-container {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+}
+
+/* Selección de asientos */
+.seat {
+    width: 30px;
+    height: 30px;
+    background-color: var(--success-color);
+    border: 1px solid #81c784;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.seat:hover:not(.taken) {
+    background-color: #a5d6a7;
+    transform: scale(1.1);
+}
+
+.seat.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-dark);
+}
+
+.seat.taken {
+    background-color: var(--danger-color);
+    border-color: #ef9a9a;
+    color: #b71c1c;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.seat-sample {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+}
+
+.seat-sample.available {
+    background-color: var(--success-color);
+    border: 1px solid #81c784;
+}
+
+.seat-sample.selected {
+    background-color: var(--primary-color);
+    border: 1px solid var(--primary-dark);
+}
+
+.seat-sample.taken {
+    background-color: var(--danger-color);
+    border: 1px solid #ef9a9a;
+}
+
+.stage {
+    background-color: var(--dark-color);
+    color: white;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    border-radius: 0.5rem;
+    text-align: center;
 }
 
 /* Dashboard */
@@ -385,6 +497,59 @@ a:hover {
     margin-bottom: 1rem;
 }
 
+/* Clases para colores pastel */
+.bg-pastel-green {
+    background-color: var(--success-color);
+}
+
+.bg-pastel-red {
+    background-color: var(--danger-color);
+}
+
+.bg-pastel-yellow {
+    background-color: var(--warning-color);
+}
+
+.text-pastel-green {
+    color: #2e7d32;
+}
+
+.text-pastel-red {
+    color: #c62828;
+}
+
+.text-pastel-yellow {
+    color: #f57f17;
+}
+
+/* Mejoras para elementos de pago */
+.payment-method-card {
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.payment-method-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.payment-method-card.selected {
+    border-color: var(--primary-color);
+    border-width: 2px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+}
+
+.payment-method-card img {
+    height: 30px;
+    object-fit: contain;
+    margin-right: 1rem;
+}
+
 /* Responsive */
 @media (max-width: 767.98px) {
     .hero-section {
@@ -401,5 +566,11 @@ a:hover {
     
     .event-detail-img {
         height: 250px;
+    }
+    
+    .seat {
+        width: 25px;
+        height: 25px;
+        font-size: 10px;
     }
 }

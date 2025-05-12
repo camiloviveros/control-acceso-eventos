@@ -1,0 +1,105 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Detalle de Entrada - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="ticket-detail">
+                <div class="card {% if ticket.is_used %}bg-light{% elif is_expired %}bg-light{% else %}border-primary{% endif %}">
+                    <div class="card-header {% if ticket.is_used %}bg-dark{% elif is_expired %}bg-danger{% else %}bg-primary{% endif %} text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h3 class="m-0">{{ ticket.ticket_type.event.name }}</h3>
+                            <span class="badge {% if ticket.is_used %}bg-danger{% elif is_expired %}bg-warning{% else %}bg-success{% endif %}">
+                                {% if ticket.is_used %}Utilizada{% elif is_expired %}Expirada{% else %}Válida{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-5 text-center mb-4 mb-md-0">
+                                <div class="qr-container p-3 bg-white border rounded">
+                                    <img src="{% url 'eventos:ticket_qr' ticket.id %}" alt="Código QR" class="img-fluid">
+                                    <p class="mt-2 small text-muted">{{ ticket.ticket_code }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-7">
+                                <h4 class="mb-3">Detalles de la Entrada</h4>
+                                <table class="table table-bordered">
+                                    <tbody>
+                                        <tr>
+                                            <th>Tipo:</th>
+                                            <td>{{ ticket.ticket_type.name }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Fecha del Evento:</th>
+                                            <td>{{ ticket.ticket_type.event.event_date|date:"l, j \d\e F \d\e Y" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Hora:</th>
+                                            <td>{{ ticket.ticket_type.event.event_date|date:"H:i" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Ubicación:</th>
+                                            <td>{{ ticket.ticket_type.event.location }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Asiento:</th>
+                                            <td>{{ ticket.seat_number|default:"N/A" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Sección:</th>
+                                            <td>{{ ticket.section|default:"N/A" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Estado:</th>
+                                            <td>
+                                                {% if ticket.is_used %}
+                                                <span class="text-danger">Utilizada</span>
+                                                {% elif is_expired %}
+                                                <span class="text-warning">Expirada</span>
+                                                {% else %}
+                                                <span class="text-success">Válida</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Fecha de Compra:</th>
+                                            <td>{{ ticket.purchase_date|date:"j/m/Y H:i" }}</td>
+                                        </tr>
+                                        <tr>
+                                            <th>Precio:</th>
+                                            <td>$ {{ ticket.ticket_type.price|floatformat:0 }} COP</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        {% if not ticket.is_used and not is_expired %}
+                        <div class="alert alert-info mt-4">
+                            <h5 class="alert-heading">Instrucciones</h5>
+                            <ul class="mb-0">
+                                <li>Presenta este código QR en la entrada del evento.</li>
+                                <li>Esta entrada es válida hasta 2 horas después de finalizado el evento.</li>
+                                <li>La entrada es personal e intransferible.</li>
+                                <li>Se requerirá identificación al ingresar.</li>
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <a href="{% url 'eventos:my_tickets' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Volver a Mis Entradas
+                        </a>
+                        <a href="#" class="btn btn-outline-dark" onclick="window.print()">
+                            <i class="fas fa-print me-2"></i>Imprimir Entrada
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

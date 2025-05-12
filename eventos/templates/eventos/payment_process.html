@@ -1,0 +1,85 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Procesar Pago - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="m-0">Procesar Pago</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h4>{{ ticket.ticket_type.event.name }}</h4>
+                        <p class="text-muted">
+                            <i class="fas fa-calendar-alt me-2"></i>{{ ticket.ticket_type.event.event_date|date:"l, j \d\e F \d\e Y" }} a las {{ ticket.ticket_type.event.event_date|date:"H:i" }}
+                        </p>
+                        <p class="text-muted">
+                            <i class="fas fa-map-marker-alt me-2"></i>{{ ticket.ticket_type.event.location }}
+                        </p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Detalles de la Compra</h5>
+                            <ul class="list-unstyled">
+                                <li><strong>Tipo de Entrada:</strong> {{ ticket.ticket_type.name }}</li>
+                                <li><strong>Precio:</strong> $ {{ ticket.ticket_type.price|floatformat:0 }} COP</li>
+                                <li><strong>Asiento:</strong> {{ ticket.seat_number|default:"Por asignar" }}</li>
+                                <li><strong>Sección:</strong> {{ ticket.section|default:"Por asignar" }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <form method="post">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Método de Pago:</strong></label>
+                                    <select name="payment_method" class="form-select" required>
+                                        <option value="">Seleccionar método de pago</option>
+                                        <option value="credit_card">Tarjeta de Crédito</option>
+                                        <option value="debit_card">Tarjeta de Débito</option>
+                                        <option value="pse">PSE</option>
+                                        <option value="nequi">Nequi</option>
+                                        <option value="daviplata">Daviplata</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Total a Pagar:</strong></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="text" class="form-control bg-light" value="{{ ticket.ticket_type.price|floatformat:0 }} COP" readonly>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between">
+                                    <a href="{% url 'eventos:my_tickets' %}" class="btn btn-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i>Cancelar
+                                    </a>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="fas fa-credit-card me-2"></i>Procesar Pago
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">Información importante</h5>
+                        <p>Este es un sistema de demostración. Ningún cargo real será procesado.</p>
+                        <ul class="mb-0">
+                            <li>Una vez completado el pago, podrás acceder a tu entrada con código QR.</li>
+                            <li>El código QR es único y no puede ser duplicado.</li>
+                            <li>La entrada será válida solo hasta 2 horas después de finalizado el evento.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

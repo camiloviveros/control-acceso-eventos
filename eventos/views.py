@@ -9,10 +9,11 @@ from django.http import JsonResponse, HttpResponse
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
-from django.contrib.auth.models import User  # Importación que faltaba
+from django.contrib.auth.models import User
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.exceptions import PermissionDenied
-from django.db import transaction  # Importación para transacciones
+from django.db import transaction
+from datetime import datetime
 
 # Importaciones de bibliotecas externas
 import qrcode
@@ -21,7 +22,7 @@ import uuid
 import logging
 
 # Importaciones locales de la aplicación
-from .models import Event, TicketType, Ticket, UserProfile
+from .models import Event, TicketType, Ticket, UserProfile, Payment
 from .forms import EventForm, TicketTypeForm, TicketPurchaseForm, UserRegistrationForm, UserProfileForm
 
 # Configurar logging para mejor depuración
@@ -175,12 +176,17 @@ def event_delete(request, pk):
     event = get_object_or_404(Event, pk=pk)
     
     if request.method == 'POST':
-        # Guardar nombre para mensaje
-        event_name = event.name
-        # Eliminar evento
-        event.delete()
-        messages.success(request, f'Evento "{event_name}" eliminado con éxito.')
-        return redirect('eventos:event_list')
+        try:
+            # Guardar nombre para mensaje
+            event_name = event.name
+            # Eliminar evento - esto eliminará cascada todos los ticket_types y tickets asociados
+            event.delete()
+            messages.success(request, f'Evento "{event_name}" eliminado con éxito.')
+            return redirect('eventos:event_list')
+        except Exception as e:
+            logger.error(f"Error al eliminar evento: {str(e)}")
+            messages.error(request, f'Error al eliminar el evento: {str(e)}')
+            return redirect('eventos:event_detail', pk=event.pk)
     
     return render(request, 'eventos/event_confirm_delete.html', {
         'event': event
@@ -230,6 +236,11 @@ def ticket_purchase(request, ticket_type_id):
         messages.error(request, 'Este tipo de entrada no está disponible.')
         return redirect('eventos:event_detail', pk=ticket_type.event.pk)
     
+    # Verificar que los administradores no puedan comprar entradas
+    if request.user.is_staff:
+        messages.warning(request, 'Los administradores no pueden comprar entradas.')
+        return redirect('eventos:event_detail', pk=ticket_type.event.pk)
+    
     if request.method == 'POST':
         form = TicketPurchaseForm(request.POST)
         if form.is_valid():
@@ -254,9 +265,17 @@ def ticket_purchase(request, ticket_type_id):
                         ticket.save()
                         tickets.append(ticket)
                 
-                # Mensaje de éxito y redirección
-                messages.success(request, f'Has comprado {quantity} entrada(s) con éxito.')
-                return redirect('eventos:my_tickets')
+                # Mensaje de éxito y redirección al primer ticket para seleccionar asiento/pagar
+                messages.success(request, f'Has reservado {quantity} entrada(s) con éxito. Ahora selecciona asiento y completa el pago.')
+                
+                # Si es solo 1 entrada, redirigir directamente a selección de asientos
+                if quantity == 1:
+                    if ticket_type.event.has_seats:
+                        return redirect('eventos:seat_selection', ticket_id=tickets[0].id)
+                    else:
+                        return redirect('eventos:payment_process', ticket_id=tickets[0].id)
+                else:
+                    return redirect('eventos:my_tickets')
                 
             except Exception as e:
                 logger.error(f"Error al crear entradas: {str(e)}")
@@ -268,6 +287,120 @@ def ticket_purchase(request, ticket_type_id):
     return render(request, 'eventos/ticket_purchase.html', {
         'form': form,
         'ticket_type': ticket_type
+    })
+
+
+@login_required
+def seat_selection(request, ticket_id):
+    """Vista para seleccionar asiento para una entrada"""
+    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    
+    # Verificar que la entrada no esté pagada
+    if ticket.is_paid:
+        messages.warning(request, 'Esta entrada ya está pagada y tiene asiento asignado.')
+        return redirect('eventos:ticket_detail', ticket_id=ticket.id)
+    
+    # Verificar que el evento permita selección de asientos
+    if not ticket.ticket_type.event.has_seats:
+        messages.warning(request, 'Este evento no requiere selección de asientos.')
+        return redirect('eventos:payment_process', ticket_id=ticket.id)
+    
+    # Obtener asientos ocupados
+    taken_seats = Ticket.objects.filter(
+        ticket_type__event=ticket.ticket_type.event, 
+        seat_number__isnull=False
+    ).values_list('seat_number', flat=True)
+    
+    if request.method == 'POST':
+        seat_number = request.POST.get('seat_number')
+        section = request.POST.get('section')
+        
+        if not seat_number or not section:
+            messages.error(request, 'Por favor, selecciona un asiento y sección.')
+            return render(request, 'eventos/seat_selection.html', {
+                'ticket': ticket,
+                'taken_seats': taken_seats
+            })
+        
+        # Verificar que el asiento no esté ocupado
+        if seat_number in taken_seats:
+            messages.error(request, 'Este asiento ya está ocupado. Por favor, selecciona otro.')
+            return render(request, 'eventos/seat_selection.html', {
+                'ticket': ticket,
+                'taken_seats': taken_seats
+            })
+        
+        # Asignar asiento
+        ticket.seat_number = seat_number
+        ticket.section = section
+        ticket.save()
+        
+        messages.success(request, 'Asiento seleccionado correctamente.')
+        return redirect('eventos:payment_process', ticket_id=ticket.id)
+    
+    return render(request, 'eventos/seat_selection.html', {
+        'ticket': ticket,
+        'taken_seats': taken_seats
+    })
+
+
+@login_required
+def payment_process(request, ticket_id):
+    """Vista para procesar el pago de una entrada"""
+    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    
+    # Verificar que la entrada no haya sido pagada
+    if ticket.is_paid:
+        messages.warning(request, 'Esta entrada ya ha sido pagada.')
+        return redirect('eventos:ticket_detail', ticket_id=ticket.id)
+    
+    if request.method == 'POST':
+        # Simulación simple de un proceso de pago
+        payment_method = request.POST.get('payment_method')
+        
+        if not payment_method:
+            messages.error(request, 'Por favor, selecciona un método de pago.')
+            return render(request, 'eventos/payment_process.html', {'ticket': ticket})
+        
+        try:
+            # Crear registro de pago
+            payment = Payment(
+                user=request.user,
+                ticket=ticket,
+                amount=ticket.ticket_type.price,
+                payment_method=payment_method,
+                status='completed',
+                transaction_id=str(uuid.uuid4())[:8]  # Simulación de ID de transacción
+            )
+            payment.save()
+            
+            # Actualizar estado de la entrada
+            ticket.is_paid = True
+            ticket.save(update_fields=['is_paid'])
+            
+            messages.success(request, '¡Pago procesado con éxito! Ya puedes acceder a tu entrada con código QR.')
+            return redirect('eventos:ticket_detail', ticket_id=ticket.id)
+            
+        except Exception as e:
+            logger.error(f"Error en proceso de pago: {str(e)}")
+            messages.error(request, f'Error al procesar el pago: {str(e)}')
+    
+    return render(request, 'eventos/payment_process.html', {'ticket': ticket})
+
+
+@login_required
+def ticket_detail(request, ticket_id):
+    """Vista para mostrar el detalle de una entrada con su QR"""
+    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    
+    # Si la entrada no está pagada y el usuario no es staff, redirigir al proceso de pago
+    if not ticket.is_paid and not request.user.is_staff:
+        return redirect('eventos:payment_process', ticket_id=ticket.id)
+    
+    return render(request, 'eventos/ticket_detail.html', {
+        'ticket': ticket,
+        'is_expired': ticket.is_expired(),
+        'now': timezone.now(),
     })
 
 
@@ -294,6 +427,10 @@ def my_tickets(request):
         base_tickets = base_tickets.filter(is_used=True)
     elif status == 'unused':
         base_tickets = base_tickets.filter(is_used=False)
+    elif status == 'paid':
+        base_tickets = base_tickets.filter(is_paid=True)
+    elif status == 'unpaid':
+        base_tickets = base_tickets.filter(is_paid=False)
     
     # Obtener eventos para el filtro desplegable
     events = Event.objects.filter(
@@ -315,8 +452,16 @@ def my_tickets(request):
 @login_required
 def ticket_qr(request, ticket_id):
     """Vista para generar y mostrar el código QR de una entrada"""
-    # Obtener la entrada, verificando que pertenezca al usuario actual
-    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    # Obtener la entrada, verificando que pertenezca al usuario actual o sea staff
+    ticket = None
+    if request.user.is_staff:
+        ticket = get_object_or_404(Ticket, pk=ticket_id)
+    else:
+        ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    
+    # Verificar si está pagada (a menos que sea staff)
+    if not ticket.is_paid and not request.user.is_staff:
+        return HttpResponse("Esta entrada no ha sido pagada", status=403)
     
     # Generar código QR
     qr = qrcode.QRCode(
@@ -345,6 +490,18 @@ def verify_ticket(request):
     """Vista para verificar entradas en la entrada del evento (solo staff)"""
     if request.method == 'POST':
         ticket_code = request.POST.get('ticket_code')
+        entry_time_str = request.POST.get('entry_time')
+        
+        # Convertir la hora de entrada si se proporcionó
+        entry_time = None
+        if entry_time_str:
+            try:
+                entry_time = timezone.make_aware(datetime.fromisoformat(entry_time_str))
+            except (ValueError, TypeError):
+                entry_time = timezone.now()
+        else:
+            entry_time = timezone.now()
+        
         if not ticket_code:
             return JsonResponse({
                 'valid': False,
@@ -364,6 +521,20 @@ def verify_ticket(request):
                     'message': 'Esta entrada ya ha sido utilizada.'
                 })
             
+            # Verificar si ha expirado
+            if ticket.is_expired():
+                return JsonResponse({
+                    'valid': False,
+                    'message': 'Esta entrada ha expirado.'
+                })
+            
+            # Verificar si está pagada
+            if not ticket.is_paid:
+                return JsonResponse({
+                    'valid': False,
+                    'message': 'Esta entrada no ha sido pagada.'
+                })
+            
             # Verificar si el evento ya comenzó
             if ticket.ticket_type.event.event_date > timezone.now():
                 return JsonResponse({
@@ -373,7 +544,8 @@ def verify_ticket(request):
             
             # Si todo está correcto, marcar como utilizada
             ticket.is_used = True
-            ticket.save(update_fields=['is_used'])
+            ticket.entry_time = entry_time
+            ticket.save(update_fields=['is_used', 'entry_time'])
             
             # Devolver información de la entrada verificada
             return JsonResponse({
@@ -383,7 +555,10 @@ def verify_ticket(request):
                     'event': ticket.ticket_type.event.name,
                     'ticket_type': ticket.ticket_type.name,
                     'user': f"{ticket.user.first_name} {ticket.user.last_name}" if ticket.user.first_name else ticket.user.username,
-                    'purchase_date': ticket.purchase_date.strftime('%d/%m/%Y %H:%M')
+                    'purchase_date': ticket.purchase_date.strftime('%d/%m/%Y %H:%M'),
+                    'seat_number': ticket.seat_number or 'N/A',
+                    'section': ticket.section or 'N/A',
+                    'entry_time': entry_time.strftime('%d/%m/%Y %H:%M') if entry_time else 'N/A'
                 },
                 'message': 'Entrada verificada con éxito.'
             })
@@ -400,7 +575,9 @@ def verify_ticket(request):
             })
     
     # Si es GET, mostrar la página de verificación
-    return render(request, 'eventos/verify_ticket.html')
+    return render(request, 'eventos/verify_ticket.html', {
+        'now': timezone.now()
+    })
 
 # -------------------------------------------------------------
 # Vistas de autenticación y perfil de usuario
@@ -458,7 +635,7 @@ def profile(request):
             user_form.save()
             profile_form.save()
             messages.success(request, 'Perfil actualizado con éxito.')
-            return redirect('profile')  # Usar URL absoluta
+            return redirect('eventos:profile')
     else:
         # Preparar formularios con datos actuales
         user_form = UserRegistrationForm(instance=request.user)
@@ -474,13 +651,17 @@ def profile(request):
     tickets = Ticket.objects.filter(user=request.user)
     upcoming_tickets = tickets.filter(ticket_type__event__event_date__gte=timezone.now())
     used_tickets = tickets.filter(is_used=True)
+    paid_tickets = tickets.filter(is_paid=True)
+    unpaid_tickets = tickets.filter(is_paid=False)
     
     return render(request, 'eventos/profile.html', {
         'user_form': user_form,
         'profile_form': profile_form,
         'ticket_count': tickets.count(),
         'upcoming_tickets': upcoming_tickets.count(),
-        'used_tickets': used_tickets.count()
+        'used_tickets': used_tickets.count(),
+        'paid_tickets': paid_tickets.count(),
+        'unpaid_tickets': unpaid_tickets.count()
     })
 
 # -------------------------------------------------------------
@@ -496,17 +677,19 @@ def dashboard(request):
         upcoming_events = Event.objects.filter(event_date__gte=timezone.now()).count()
         total_tickets = Ticket.objects.count()
         used_tickets = Ticket.objects.filter(is_used=True).count()
+        paid_tickets = Ticket.objects.filter(is_paid=True).count()
         total_users = User.objects.count()
+        total_revenue = Payment.objects.filter(status='completed').aggregate(Sum('amount'))['amount__sum'] or 0
         
         # Eventos más populares (con más entradas vendidas)
         popular_events = Event.objects.annotate(
-            ticket_count=Count('tickettype__ticket')
+            ticket_count=Count('tickettype__ticket', filter=Q(tickettype__ticket__is_paid=True))
         ).order_by('-ticket_count')[:5]
         
         # Ventas por evento (ingresos)
         sales_by_event = Event.objects.annotate(
-            ticket_count=Count('tickettype__ticket'),
-            revenue=Sum('tickettype__ticket__ticket_type__price')
+            ticket_count=Count('tickettype__ticket', filter=Q(tickettype__ticket__is_paid=True)),
+            revenue=Sum('tickettype__ticket__ticket_type__price', filter=Q(tickettype__ticket__is_paid=True))
         ).order_by('-revenue')[:10]
         
         return render(request, 'eventos/dashboard.html', {
@@ -514,7 +697,9 @@ def dashboard(request):
             'upcoming_events': upcoming_events,
             'total_tickets': total_tickets,
             'used_tickets': used_tickets,
+            'paid_tickets': paid_tickets,
             'total_users': total_users,
+            'total_revenue': total_revenue,
             'popular_events': popular_events,
             'sales_by_event': sales_by_event
         })

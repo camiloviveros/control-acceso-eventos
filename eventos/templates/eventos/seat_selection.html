@@ -1,0 +1,210 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Selección de Asientos - {{ ticket.ticket_type.event.name }} - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="m-0">Selección de Asientos</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h4>{{ ticket.ticket_type.event.name }}</h4>
+                        <p class="text-muted">
+                            <i class="fas fa-calendar-alt me-2"></i>{{ ticket.ticket_type.event.event_date|date:"l, j \d\e F \d\e Y" }} a las {{ ticket.ticket_type.event.event_date|date:"H:i" }}
+                        </p>
+                        <p class="text-muted">
+                            <i class="fas fa-map-marker-alt me-2"></i>{{ ticket.ticket_type.event.location }}
+                        </p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5 class="mb-3">Mapa de Asientos</h5>
+                            <div class="seat-map bg-light p-4 text-center mb-4" style="min-height: 300px; border-radius: 8px;">
+                                <!-- Representación visual del escenario -->
+                                <div class="stage mb-4 mx-auto" style="background-color: #343a40; color: white; width: 80%; height: 50px; line-height: 50px; border-radius: 5px;">
+                                    ESCENARIO
+                                </div>
+                                
+                                <!-- Secciones y asientos -->
+                                <div class="seat-sections d-flex flex-wrap justify-content-center gap-4">
+                                    <!-- Sección VIP -->
+                                    <div class="section">
+                                        <h6 class="mb-2">Sección VIP</h6>
+                                        <div class="seats d-flex flex-wrap justify-content-center gap-2 mb-3">
+                                            {% for i in "123456789"|make_list %}
+                                            <div class="seat {% if i in taken_seats %}taken{% endif %}" data-section="VIP" data-seat="V{{ i }}">
+                                                V{{ i }}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Sección General -->
+                                    <div class="section">
+                                        <h6 class="mb-2">Sección General</h6>
+                                        <div class="seats d-flex flex-wrap justify-content-center gap-2 mb-3">
+                                            {% for i in "123456789"|make_list %}
+                                            {% for j in "ABCDE"|make_list %}
+                                            <div class="seat {% if j|add:i in taken_seats %}taken{% endif %}" data-section="General" data-seat="{{ j }}{{ i }}">
+                                                {{ j }}{{ i }}
+                                            </div>
+                                            {% endfor %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="seat-legend d-flex justify-content-center gap-4 mt-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="seat-sample available me-2"></div>
+                                        <span>Disponible</span>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="seat-sample selected me-2"></div>
+                                        <span>Seleccionado</span>
+                                    </div>
+                                    <div class="d-flex align-items-center">
+                                        <div class="seat-sample taken me-2"></div>
+                                        <span>Ocupado</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <h5 class="mb-3">Información del Asiento</h5>
+                            <form method="post" id="seat-form">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label for="section" class="form-label">Sección</label>
+                                    <input type="text" class="form-control" id="section" name="section" readonly required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="seat_number" class="form-label">Número de Asiento</label>
+                                    <input type="text" class="form-control" id="seat_number" name="seat_number" readonly required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Entrada</label>
+                                    <input type="text" class="form-control" value="{{ ticket.ticket_type.name }}" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Precio</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">$</span>
+                                        <input type="text" class="form-control" value="{{ ticket.ticket_type.price|floatformat:0 }} COP" readonly>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary" id="confirm-btn" disabled>
+                                        <i class="fas fa-check-circle me-2"></i>Confirmar Selección
+                                    </button>
+                                    <a href="{% url 'eventos:my_tickets' %}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times-circle me-2"></i>Cancelar
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const seats = document.querySelectorAll('.seat:not(.taken)');
+        const sectionInput = document.getElementById('section');
+        const seatNumberInput = document.getElementById('seat_number');
+        const confirmBtn = document.getElementById('confirm-btn');
+        
+        // Agregar evento de clic a cada asiento
+        seats.forEach(seat => {
+            seat.addEventListener('click', function() {
+                // Quitar selección previa
+                document.querySelectorAll('.seat.selected').forEach(s => {
+                    s.classList.remove('selected');
+                });
+                
+                // Seleccionar este asiento
+                this.classList.add('selected');
+                
+                // Actualizar formulario
+                sectionInput.value = this.getAttribute('data-section');
+                seatNumberInput.value = this.getAttribute('data-seat');
+                
+                // Habilitar botón de confirmación
+                confirmBtn.disabled = false;
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .seat {
+        width: 30px;
+        height: 30px;
+        background-color: #c8e6c9;
+        border: 1px solid #81c784;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .seat:hover:not(.taken) {
+        background-color: #a5d6a7;
+        transform: scale(1.1);
+    }
+    
+    .seat.selected {
+        background-color: #4361ee;
+        color: white;
+        border-color: #3a56d4;
+    }
+    
+    .seat.taken {
+        background-color: #ffcdd2;
+        border-color: #ef9a9a;
+        color: #b71c1c;
+        cursor: not-allowed;
+        opacity: 0.8;
+    }
+    
+    .seat-sample {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+    }
+    
+    .seat-sample.available {
+        background-color: #c8e6c9;
+        border: 1px solid #81c784;
+    }
+    
+    .seat-sample.selected {
+        background-color: #4361ee;
+        border: 1px solid #3a56d4;
+    }
+    
+    .seat-sample.taken {
+        background-color: #ffcdd2;
+        border: 1px solid #ef9a9a;
+    }
+</style>
+{% endblock %}
