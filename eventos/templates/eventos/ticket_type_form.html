@@ -1,0 +1,67 @@
+{% extends 'eventos/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Crear Tipo de Entrada - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="m-0">Crear Tipo de Entrada</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <h4>{{ event.name }}</h4>
+                        <p class="text-muted">
+                            <i class="fas fa-calendar-alt me-2"></i>{{ event.event_date|date:"l, j \d\e F \d\e Y" }} a las {{ event.event_date|date:"H:i" }}
+                        </p>
+                        <p class="text-muted">
+                            <i class="fas fa-map-marker-alt me-2"></i>{{ event.location }}
+                        </p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.name|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.price|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            {{ form.available_quantity|as_crispy_field }}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'eventos:event_detail' event.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Crear Tipo de Entrada
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer">
+                    <div class="alert alert-info mb-0">
+                        <h5 class="alert-heading">Información</h5>
+                        <ul class="mb-0">
+                            <li>El <strong>nombre</strong> debe ser descriptivo (Ej: "VIP", "General", "Estudiante")</li>
+                            <li>El <strong>precio</strong> debe ser el valor en pesos sin el símbolo</li>
+                            <li>La <strong>cantidad disponible</strong> debe ser un número entero positivo</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

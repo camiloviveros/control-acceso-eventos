@@ -1,0 +1,145 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Eventos - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="mb-5 text-center">Explora Nuestros Eventos</h1>
+    
+    <!-- Filtros -->
+    <div class="card mb-5">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" name="q" class="form-control" placeholder="Buscar eventos..." value="{{ q }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="date" class="form-select">
+                        <option value="">Todas las fechas</option>
+                        <option value="upcoming" {% if date == 'upcoming' %}selected{% endif %}>Próximos eventos</option>
+                        <option value="past" {% if date == 'past' %}selected{% endif %}>Eventos pasados</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="order_by" class="form-select">
+                        <option value="-event_date" {% if order_by == '-event_date' %}selected{% endif %}>Más recientes primero</option>
+                        <option value="event_date" {% if order_by == 'event_date' %}selected{% endif %}>Más antiguos primero</option>
+                        <option value="name" {% if order_by == 'name' %}selected{% endif %}>Nombre (A-Z)</option>
+                        <option value="-name" {% if order_by == '-name' %}selected{% endif %}>Nombre (Z-A)</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter"></i></button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Resultados -->
+    <div class="row">
+        {% if events %}
+            {% for event in events %}
+            <div class="col-md-4 mb-4">
+                <div class="card event-card h-100">
+                    <div class="event-card-img">
+                        {% if event.image %}
+                        <img src="{{ event.image.url }}" class="card-img-top" alt="{{ event.name }}">
+                        {% else %}
+                        <img src="/static/img/event-placeholder.jpg" class="card-img-top" alt="{{ event.name }}">
+                        {% endif %}
+                        <div class="event-date">
+                            <span class="day">{{ event.event_date|date:"d" }}</span>
+                            <span class="month">{{ event.event_date|date:"M" }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title fw-bold">{{ event.name }}</h5>
+                        <p class="card-text text-muted">
+                            <i class="fas fa-calendar-alt me-2"></i>{{ event.event_date|date:"l, j \d\e F \d\e Y" }}
+                        </p>
+                        <p class="card-text text-muted">
+                            <i class="fas fa-map-marker-alt me-2"></i>{{ event.location }}
+                        </p>
+                        <p class="card-text">{{ event.description|truncatewords:15 }}</p>
+                    </div>
+                    <div class="card-footer bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge {% if event.is_upcoming %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if event.is_upcoming %}Próximo{% else %}Finalizado{% endif %}
+                            </span>
+                            <a href="{% url 'eventos:event_detail' event.id %}" class="btn btn-primary">Ver detalles</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Paginación -->
+            {% if is_paginated %}
+            <div class="col-12">
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if q %}&q={{ q }}{% endif %}{% if date %}&date={{ date }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" aria-label="First">
+                                <span aria-hidden="true">&laquo;&laquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if date %}&date={{ date }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if q %}&q={{ q }}{% endif %}{% if date %}&date={{ date }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}">{{ num }}</a>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if date %}&date={{ date }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if q %}&q={{ q }}{% endif %}{% if date %}&date={{ date }}{% endif %}{% if order_by %}&order_by={{ order_by }}{% endif %}" aria-label="Last">
+                                <span aria-hidden="true">&raquo;&raquo;</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+            
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <p>No se encontraron eventos{% if q %} con la búsqueda "{{ q }}"{% endif %}{% if date %} en el rango de fechas seleccionado{% endif %}.</p>
+                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary btn-sm">Ver todos los eventos</a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    {% if user.is_staff %}
+    <div class="text-center mt-5">
+        <a href="{% url 'eventos:event_create' %}" class="btn btn-success btn-lg">
+            <i class="fas fa-plus me-2"></i>Crear Nuevo Evento
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

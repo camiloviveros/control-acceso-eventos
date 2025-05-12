@@ -1,0 +1,64 @@
+{% extends 'eventos/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }} - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="m-0">{{ title }}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.name|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.event_date|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ form.location|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ form.capacity|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.description|as_crispy_field }}
+                        </div>
+                        
+                        <div class="mb-4">
+                            {{ form.image|as_crispy_field }}
+                            {% if event and event.image %}
+                            <div class="mt-2">
+                                <p>Imagen actual:</p>
+                                <img src="{{ event.image.url }}" alt="{{ event.name }}" class="img-thumbnail" style="max-height: 150px;">
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% if event %}{% url 'eventos:event_detail' event.id %}{% else %}{% url 'eventos:event_list' %}{% endif %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>{{ button_text }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Verificar Entradas - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="m-0">Verificar Entradas</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-4 mb-md-0">
+                            <h5 class="mb-3">Escanear Código QR</h5>
+                            <div id="qr-scanner" class="mb-3 border rounded bg-light" style="min-height: 300px; display: flex; align-items: center; justify-content: center;">
+                                <p class="text-center text-muted">Haz clic en "Iniciar Escáner" para escanear un código QR</p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button id="start-scan" class="btn btn-primary">
+                                    <i class="fas fa-camera me-2"></i>Iniciar Escáner
+                                </button>
+                                <button id="stop-scan" class="btn btn-danger d-none">
+                                    <i class="fas fa-stop-circle me-2"></i>Detener Escáner
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h5 class="mb-3">Verificación Manual</h5>
+                            <form id="verify-form" method="post">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label for="ticket-code" class="form-label">Código de Entrada</label>
+                                    <div class="input-group">
+                                        <input type="text" id="ticket-code" name="ticket_code" class="form-control" placeholder="Ingresa el código de la entrada">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-check me-2"></i>Verificar
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                            
+                            <div id="scan-result" class="mt-3"></div>
+                            <div id="ticket-details" class="mt-3"></div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">Instrucciones</h5>
+                        <ol class="mb-0">
+                            <li>Escanea el código QR de la entrada o ingresa el código manualmente.</li>
+                            <li>Verifica que el evento, el tipo de entrada y el usuario sean correctos.</li>
+                            <li>Confirma que la entrada no haya sido utilizada previamente.</li>
+                            <li>Si todo es correcto, permite el acceso al evento.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

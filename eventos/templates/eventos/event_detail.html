@@ -1,0 +1,152 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}{{ event.name }} - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Evento Imagen y Detalles -->
+            <div class="event-detail-img">
+                {% if event.image %}
+                <img src="{{ event.image.url }}" alt="{{ event.name }}" class="img-fluid">
+                {% else %}
+                <img src="/static/img/event-placeholder.jpg" alt="{{ event.name }}" class="img-fluid">
+                {% endif %}
+            </div>
+            
+            <h1 class="mb-4">{{ event.name }}</h1>
+            
+            <div class="event-info mb-4">
+                <div class="event-info-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <div>
+                        <strong>Fecha y Hora</strong>
+                        <p class="mb-0">{{ event.event_date|date:"l, j \d\e F \d\e Y" }} a las {{ event.event_date|date:"H:i" }}</p>
+                    </div>
+                </div>
+                <div class="event-info-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <div>
+                        <strong>Ubicación</strong>
+                        <p class="mb-0">{{ event.location }}</p>
+                    </div>
+                </div>
+                <div class="event-info-item">
+                    <i class="fas fa-users"></i>
+                    <div>
+                        <strong>Capacidad</strong>
+                        <p class="mb-0">{{ event.capacity }} personas</p>
+                    </div>
+                </div>
+                {% if event.get_available_tickets > 0 %}
+                <div class="event-info-item">
+                    <i class="fas fa-ticket-alt"></i>
+                    <div>
+                        <strong>Entradas Disponibles</strong>
+                        <p class="mb-0">{{ event.get_available_tickets }} entradas</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="event-info-item">
+                    <i class="fas fa-ticket-alt"></i>
+                    <div>
+                        <strong>Estado</strong>
+                        <p class="mb-0 text-danger">Agotado</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-5">
+                <h3 class="mb-3">Descripción</h3>
+                <div class="bg-light p-4 rounded">
+                    <p>{{ event.description|linebreaks }}</p>
+                </div>
+            </div>
+            
+            {% if user.is_staff %}
+            <div class="mb-5">
+                <h3 class="mb-3">Administración</h3>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'eventos:event_update' event.id %}" class="btn btn-primary">
+                        <i class="fas fa-edit me-2"></i>Editar Evento
+                    </a>
+                    <a href="{% url 'eventos:ticket_type_create' event.id %}" class="btn btn-success">
+                        <i class="fas fa-plus me-2"></i>Añadir Tipo de Entrada
+                    </a>
+                    <a href="{% url 'eventos:event_delete' event.id %}" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Eliminar Evento
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Comprar Entradas -->
+            <div class="card sticky-top" style="top: 100px;">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="m-0">Comprar Entradas</h4>
+                </div>
+                <div class="card-body">
+                    {% if ticket_types %}
+                        {% if event.is_upcoming %}
+                            <h5 class="mb-3">Tipos de Entradas</h5>
+                            <ul class="list-group mb-4">
+                                {% for ticket_type in ticket_types %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ ticket_type.name }}</strong>
+                                        <p class="text-muted mb-0">{{ ticket_type.price }} €</p>
+                                    </div>
+                                    {% if ticket_type.is_available and user.is_authenticated %}
+                                    <a href="{% url 'eventos:ticket_purchase' ticket_type.id %}" class="btn btn-sm btn-outline-primary">Comprar</a>
+                                    {% elif ticket_type.is_available %}
+                                    <a href="{% url 'login' %}?next={% url 'eventos:event_detail' event.id %}" class="btn btn-sm btn-outline-primary">Iniciar Sesión</a>
+                                    {% else %}
+                                    <span class="badge bg-danger">Agotado</span>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            
+                            {% if user.is_authenticated %}
+                                {% if user_tickets %}
+                                <div class="alert alert-info">
+                                    <h5 class="alert-heading">Tus Entradas</h5>
+                                    <p>Ya tienes {{ user_tickets.count }} entrada(s) para este evento.</p>
+                                    <a href="{% url 'eventos:my_tickets' %}?event={{ event.id }}" class="btn btn-info btn-sm">Ver mis entradas</a>
+                                </div>
+                                {% endif %}
+                            {% else %}
+                            <div class="alert alert-warning">
+                                <p>Debes iniciar sesión para comprar entradas.</p>
+                                <a href="{% url 'login' %}?next={% url 'eventos:event_detail' event.id %}" class="btn btn-primary btn-sm">Iniciar Sesión</a>
+                            </div>
+                            {% endif %}
+                        {% else %}
+                        <div class="alert alert-warning">
+                            <p>Este evento ya ha pasado, no se pueden comprar entradas.</p>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <div class="alert alert-info">
+                        <p>No hay tipos de entradas disponibles para este evento.</p>
+                        {% if user.is_staff %}
+                        <a href="{% url 'eventos:ticket_type_create' event.id %}" class="btn btn-primary btn-sm">Añadir Tipo de Entrada</a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <p class="mb-0 text-center">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Las entradas se generan automáticamente después de la compra.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

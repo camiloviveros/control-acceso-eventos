@@ -1,0 +1,40 @@
+{% extends 'eventos/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Registro - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="m-0">Crear una Cuenta</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <h5 class="mb-3">Información de Usuario</h5>
+                        {{ user_form|crispy }}
+                        
+                        <h5 class="mb-3 mt-4">Información de Perfil</h5>
+                        {{ profile_form|crispy }}
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus me-2"></i>Registrarse
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer">
+                    <div class="text-center">
+                        <p class="mb-0">¿Ya tienes una cuenta? <a href="{% url 'login' %}">Inicia sesión</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

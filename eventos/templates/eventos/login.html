@@ -1,0 +1,37 @@
+{% extends 'eventos/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Iniciar Sesión - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-6 mx-auto">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="m-0">Iniciar Sesión</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt me-2"></i>Entrar
+                            </button>
+                        </div>
+                        
+                        <input type="hidden" name="next" value="{{ next }}">
+                    </form>
+                </div>
+                <div class="card-footer">
+                    <div class="text-center">
+                        <p class="mb-0">¿No tienes una cuenta? <a href="{% url 'eventos:register' %}">Regístrate ahora</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Mis Entradas - EventosYA{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-9">
+            <h1 class="mb-4">Mis Entradas</h1>
+            
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-5">
+                            <label for="event" class="form-label">Evento</label>
+                            <select name="event" id="event" class="form-select">
+                                <option value="">Todos los eventos</option>
+                                {% for event in events %}
+                                <option value="{{ event.id }}" {% if selected_event == event.id|stringformat:"i" %}selected{% endif %}>{{ event.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label for="status" class="form-label">Estado</label>
+                            <select name="status" id="status" class="form-select">
+                                <option value="">Todos</option>
+                                <option value="used" {% if selected_status == 'used' %}selected{% endif %}>Utilizadas</option>
+                                <option value="unused" {% if selected_status == 'unused' %}selected{% endif %}>No utilizadas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Lista de Entradas -->
+            {% if tickets %}
+                {% for ticket in tickets %}
+                <div class="ticket-card">
+                    <div class="ticket-header">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h5 class="m-0">{{ ticket.ticket_type.event.name }}</h5>
+                                <p class="m-0 small">{{ ticket.ticket_type.event.event_date|date:"l, j \d\e F \d\e Y" }} a las {{ ticket.ticket_type.event.event_date|date:"H:i" }}</p>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <span class="badge {% if ticket.is_used %}bg-danger{% else %}bg-success{% endif %}">
+                                    {% if ticket.is_used %}Utilizada{% else %}No utilizada{% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ticket-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="ticket-qr">
+                                    <img src="{% url 'eventos:ticket_qr' ticket.id %}" alt="Código QR" class="img-fluid">
+                                    <p class="small text-muted mt-2">{{ ticket.ticket_code }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <h6 class="mb-3">Detalles de la Entrada</h6>
+                                <ul class="list-unstyled">
+                                    <li><strong>Tipo:</strong> {{ ticket.ticket_type.name }}</li>
+                                    <li><strong>Precio:</strong> {{ ticket.ticket_type.price }} €</li>
+                                    <li><strong>Fecha de Compra:</strong> {{ ticket.purchase_date|date:"j/m/Y H:i" }}</li>
+                                    <li><strong>Ubicación:</strong> {{ ticket.ticket_type.event.location }}</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ticket-footer">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <p class="m-0"><strong>Estado:</strong> 
+                                {% if ticket.is_used %}
+                                <span class="text-danger">Utilizada</span>
+                                {% elif ticket.ticket_type.event.event_date < now %}
+                                <span class="text-warning">Evento finalizado</span>
+                                {% else %}
+                                <span class="text-success">Válida</span>
+                                {% endif %}
+                            </p>
+                            <a href="#" class="btn btn-sm btn-outline-primary" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Imprimir
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    <p>No tienes entradas {% if selected_event or selected_status %}con los filtros seleccionados{% endif %}.</p>
+                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary btn-sm">Explorar eventos</a>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-3">
+            <!-- Resumen de Entradas -->
+            <div class="card sticky-top" style="top: 100px;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="m-0">Resumen</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total de entradas
+                            <span class="badge bg-primary rounded-pill">{{ tickets.count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Entradas utilizadas
+                            <span class="badge bg-danger rounded-pill">{{ tickets|filter_by:"is_used,True"|length }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Entradas no utilizadas
+                            <span class="badge bg-success rounded-pill">{{ tickets|filter_by:"is_used,False"|length }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary w-100">Explorar eventos</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

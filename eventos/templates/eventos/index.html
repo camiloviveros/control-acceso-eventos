@@ -1,0 +1,172 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}EventosYA - Tu plataforma de eventos{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h1 class="display-4 fw-bold mb-4">Descubre, <span class="text-primary">Vive</span> y <span class="text-primary">Disfruta</span> los mejores eventos</h1>
+                <p class="lead mb-4">Encuentra, compra entradas y gestiona tus eventos favoritos en un solo lugar.</p>
+                <div class="d-flex gap-3">
+                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary btn-lg">Ver eventos</a>
+                    {% if not user.is_authenticated %}
+                    <a href="{% url 'eventos:register' %}" class="btn btn-outline-primary btn-lg">Registrarse</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-6 d-none d-md-block">
+                <img src="/static/img/hero-image.svg" alt="Eventos" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row text-center">
+            <div class="col-md-4 mb-4 mb-md-0">
+                <div class="stat-item">
+                    <div class="stat-icon bg-primary text-white">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <h3 class="stat-number">{{ upcoming_count }}</h3>
+                    <p class="stat-text">Próximos eventos</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4 mb-md-0">
+                <div class="stat-item">
+                    <div class="stat-icon bg-success text-white">
+                        <i class="fas fa-ticket-alt"></i>
+                    </div>
+                    <h3 class="stat-number">{{ total_events }}</h3>
+                    <p class="stat-text">Total de eventos</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-item">
+                    <div class="stat-icon bg-info text-white">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3 class="stat-number">{% if user.is_authenticated %}{{ user_tickets_count }}{% else %}0{% endif %}</h3>
+                    <p class="stat-text">{% if user.is_authenticated %}Tus entradas{% else %}Entradas{% endif %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Upcoming Events Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="section-title text-center mb-5">
+            <h2 class="fw-bold">Próximos Eventos</h2>
+            <p class="text-muted">Descubre los eventos más esperados que están por venir</p>
+        </div>
+        
+        <div class="row">
+            {% if events %}
+                {% for event in events %}
+                <div class="col-md-4 mb-4">
+                    <div class="card event-card h-100">
+                        <div class="event-card-img">
+                            {% if event.image %}
+                            <img src="{{ event.image.url }}" class="card-img-top" alt="{{ event.name }}">
+                            {% else %}
+                            <img src="/static/img/event-placeholder.jpg" class="card-img-top" alt="{{ event.name }}">
+                            {% endif %}
+                            <div class="event-date">
+                                <span class="day">{{ event.event_date|date:"d" }}</span>
+                                <span class="month">{{ event.event_date|date:"M" }}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title fw-bold">{{ event.name }}</h5>
+                            <p class="card-text text-muted">
+                                <i class="fas fa-map-marker-alt me-2"></i>{{ event.location }}
+                            </p>
+                            <p class="card-text">{{ event.description|truncatewords:15 }}</p>
+                        </div>
+                        <div class="card-footer bg-white">
+                            <a href="{% url 'eventos:event_detail' event.id %}" class="btn btn-outline-primary w-100">Ver detalles</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        No hay eventos próximos por el momento.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'eventos:event_list' %}" class="btn btn-primary">Ver todos los eventos</a>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="section-title text-center mb-5">
+            <h2 class="fw-bold">¿Por qué usar EventosYA?</h2>
+            <p class="text-muted">Descubre las ventajas de nuestra plataforma</p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card text-center p-4">
+                    <div class="feature-icon mb-3">
+                        <i class="fas fa-search fa-3x text-primary"></i>
+                    </div>
+                    <h4>Encuentra eventos fácilmente</h4>
+                    <p class="text-muted">Busca eventos por nombre, fecha o ubicación de manera rápida y sencilla.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card text-center p-4">
+                    <div class="feature-icon mb-3">
+                        <i class="fas fa-ticket-alt fa-3x text-primary"></i>
+                    </div>
+                    <h4>Compra entradas seguras</h4>
+                    <p class="text-muted">Proceso de compra seguro con códigos QR únicos para cada entrada.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card text-center p-4">
+                    <div class="feature-icon mb-3">
+                        <i class="fas fa-calendar-check fa-3x text-primary"></i>
+                    </div>
+                    <h4>Gestiona tus eventos</h4>
+                    <p class="text-muted">Crea, edita y administra todos tus eventos desde un solo lugar.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h2 class="fw-bold mb-3">¿Listo para comenzar con EventosYA?</h2>
+                <p class="lead mb-0">Únete a nuestra plataforma y comienza a disfrutar de los mejores eventos.</p>
+            </div>
+            <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
+                {% if user.is_authenticated %}
+                <a href="{% url 'eventos:event_list' %}" class="btn btn-light btn-lg">Explorar eventos</a>
+                {% else %}
+                <a href="{% url 'eventos:register' %}" class="btn btn-light btn-lg">Registrarse ahora</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,254 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Panel de Control - EventosYA{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="mb-5">Panel de Control</h1>
+    
+    <!-- Estadísticas Generales -->
+    <div class="row mb-5">
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card">
+                <div class="dashboard-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="dashboard-number">{{ total_events }}</div>
+                <h5>Eventos Totales</h5>
+                <p class="text-muted">{{ upcoming_events }} eventos próximos</p>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card">
+                <div class="dashboard-icon">
+                    <i class="fas fa-ticket-alt"></i>
+                </div>
+                <div class="dashboard-number">{{ total_tickets }}</div>
+                <h5>Entradas Vendidas</h5>
+                <p class="text-muted">{{ used_tickets }} entradas utilizadas</p>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="dashboard-card">
+                <div class="dashboard-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="dashboard-number">{{ total_users }}</div>
+                <h5>Usuarios Registrados</h5>
+                <p class="text-muted">Personas utilizando la plataforma</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gráficos -->
+    <div class="row mb-5">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="card-title m-0">Ventas por Evento</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="event-sales-chart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-light">
+                    <h5 class="card-title m-0">Tipos de Entradas</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="ticket-types-chart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Eventos Populares -->
+    <div class="card mb-5">
+        <div class="card-header bg-light">
+            <h5 class="card-title m-0">Eventos Más Populares</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Evento</th>
+                            <th>Fecha</th>
+                            <th>Ubicación</th>
+                            <th>Entradas Vendidas</th>
+                            <th>Ingresos</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in popular_events %}
+                        <tr>
+                            <td>{{ event.name }}</td>
+                            <td>{{ event.event_date|date:"d/m/Y H:i" }}</td>
+                            <td>{{ event.location }}</td>
+                            <td>{{ event.ticket_count }}</td>
+                            <td>{{ event.revenue|default:"0.00" }} €</td>
+                            <td>
+                                <a href="{% url 'eventos:event_detail' event.id %}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center">No hay eventos con entradas vendidas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ventas por Evento -->
+    <div class="card mb-5">
+        <div class="card-header bg-light">
+            <h5 class="card-title m-0">Ventas por Evento</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Evento</th>
+                            <th>Fecha</th>
+                            <th>Entradas Vendidas</th>
+                            <th>Ingresos</th>
+                            <th>% Ocupación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for event in sales_by_event %}
+                        <tr>
+                            <td>{{ event.name }}</td>
+                            <td>{{ event.event_date|date:"d/m/Y H:i" }}</td>
+                            <td>{{ event.ticket_count }}</td>
+                            <td>{{ event.revenue|default:"0.00" }} €</td>
+                            <td>
+                                {% with occupancy=event.ticket_count|floatformat:0|default:"0"|add:0 %}
+                                {% with percentage=occupancy|multiply:100|divide:event.capacity %}
+                                <div class="progress">
+                                    <div class="progress-bar {% if percentage < 50 %}bg-warning{% elif percentage < 80 %}bg-info{% else %}bg-success{% endif %}" 
+                                         role="progressbar" style="width: {{ percentage }}%">
+                                        {{ percentage|floatformat:0 }}%
+                                    </div>
+                                </div>
+                                {% endwith %}
+                                {% endwith %}
+                            </td>
+                            <td>
+                                <a href="{% url 'eventos:event_detail' event.id %}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center">No hay eventos con entradas vendidas.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Datos para los gráficos (en una aplicación real, estos datos vendrían del backend)
+        const eventNames = [{% for event in popular_events %}'{{ event.name|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const ticketCounts = [{% for event in popular_events %}{{ event.ticket_count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const revenues = [{% for event in popular_events %}{{ event.revenue|default:"0.00" }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        
+        // Gráfico de Ventas por Evento
+        const eventSalesChart = document.getElementById('event-sales-chart');
+        if (eventSalesChart) {
+            new Chart(eventSalesChart, {
+                type: 'bar',
+                data: {
+                    labels: eventNames,
+                    datasets: [{
+                        label: 'Entradas Vendidas',
+                        data: ticketCounts,
+                        backgroundColor: 'rgba(67, 97, 238, 0.6)',
+                        borderColor: 'rgba(67, 97, 238, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Entradas Vendidas por Evento'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Gráfico de Tipos de Entradas
+        const ticketTypesChart = document.getElementById('ticket-types-chart');
+        if (ticketTypesChart) {
+            // En una aplicación real, estos datos vendrían del backend
+            new Chart(ticketTypesChart, {
+                type: 'pie',
+                data: {
+                    labels: ['VIP', 'General', 'Estudiante'],
+                    datasets: [{
+                        label: 'Tipos de Entradas',
+                        data: [30, 50, 20],
+                        backgroundColor: [
+                            'rgba(67, 97, 238, 0.6)',
+                            'rgba(46, 196, 182, 0.6)',
+                            'rgba(255, 159, 28, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(67, 97, 238, 1)',
+                            'rgba(46, 196, 182, 1)',
+                            'rgba(255, 159, 28, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Distribución de Tipos de Entradas'
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
