@@ -1,127 +1,208 @@
 {% extends 'eventos/base.html' %}
+{% load crispy_forms_tags %}
 
-{% block title %}Mis Entradas - EventosYA{% endblock %}
+{% block title %}Mi Perfil - CamEventos{% endblock %}
 
 {% block content %}
 <div class="container py-5">
     <div class="row">
-        <div class="col-lg-9">
-            <h1 class="mb-4">Mis Entradas</h1>
-            
-            <!-- Filtros -->
+        <div class="col-lg-4 mb-4 mb-lg-0">
+            <!-- Información del Perfil -->
             <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="m-0">Mi Perfil</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="profile-avatar mb-3">
+                        <i class="fas fa-user-circle fa-6x text-primary"></i>
+                    </div>
+                    <h4>{{ user.get_full_name }}</h4>
+                    <p class="text-muted">{{ user.email }}</p>
+                    <div class="mt-3">
+                        <p><i class="fas fa-user me-2"></i>{{ user.username }}</p>
+                        {% if user.profile.phone %}
+                        <p><i class="fas fa-phone me-2"></i>{{ user.profile.phone }}</p>
+                        {% endif %}
+                        {% if user.profile.address %}
+                        <p><i class="fas fa-map-marker-alt me-2"></i>{{ user.profile.address }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            {% if not user.is_staff %}
+            <!-- Estadísticas del Usuario (solo para usuarios normales) -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="m-0">Mis Estadísticas</h5>
+                </div>
                 <div class="card-body">
-                    <form method="get" class="row g-3">
-                        <div class="col-md-5">
-                            <label for="event" class="form-label">Evento</label>
-                            <select name="event" id="event" class="form-select">
-                                <option value="">Todos los eventos</option>
-                                {% for event in events %}
-                                <option value="{{ event.id }}" {% if selected_event == event.id|stringformat:"i" %}selected{% endif %}>{{ event.name }}</option>
-                                {% endfor %}
-                            </select>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-primary text-white">
+                                    <i class="fas fa-ticket-alt"></i>
+                                </div>
+                                <h3 class="stat-number">{{ ticket_count }}</h3>
+                                <p class="stat-text">Entradas</p>
+                            </div>
                         </div>
-                        <div class="col-md-5">
-                            <label for="status" class="form-label">Estado</label>
-                            <select name="status" id="status" class="form-select">
-                                <option value="">Todos</option>
-                                <option value="used" {% if selected_status == 'used' %}selected{% endif %}>Utilizadas</option>
-                                <option value="unused" {% if selected_status == 'unused' %}selected{% endif %}>No utilizadas</option>
-                            </select>
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-success text-white">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <h3 class="stat-number">{{ upcoming_tickets }}</h3>
+                                <p class="stat-text">Próximos</p>
+                            </div>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-info text-white">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <h3 class="stat-number">{{ used_tickets }}</h3>
+                                <p class="stat-text">Usadas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2 mt-3">
+                        <a href="{% url 'eventos:my_tickets' %}" class="btn btn-primary">
+                            <i class="fas fa-ticket-alt me-2"></i>Ver Mis Entradas
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- Panel para administradores -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="m-0">Panel de Administrador</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'eventos:dashboard' %}" class="btn btn-primary mb-2">
+                            <i class="fas fa-chart-line me-2"></i>Panel de Control
+                        </a>
+                        <a href="{% url 'eventos:verify_ticket' %}" class="btn btn-success mb-2">
+                            <i class="fas fa-qrcode me-2"></i>Verificar Entradas
+                        </a>
+                        <a href="{% url 'eventos:event_create' %}" class="btn btn-info mb-2">
+                            <i class="fas fa-plus-circle me-2"></i>Crear Evento
+                        </a>
+                        <a href="/admin/" class="btn btn-secondary">
+                            <i class="fas fa-cogs me-2"></i>Administración Django
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-8">
+            <!-- Formulario de Edición de Perfil -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="m-0">Editar Perfil</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <h5 class="mb-3">Información de Usuario</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ user_form.first_name|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ user_form.last_name|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ user_form.username|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ user_form.email|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3 mt-4">Información de Contacto</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ profile_form.phone|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ profile_form.address|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <h5 class="mb-3 mt-4">Cambio de Contraseña</h5>
+                        <p class="text-muted mb-3">Deja estos campos en blanco si no deseas cambiar tu contraseña.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                {{ user_form.password1|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                {{ user_form.password2|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Guardar Cambios
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
             
-            <!-- Lista de Entradas -->
-            {% if tickets %}
-                {% for ticket in tickets %}
-                <div class="ticket-card">
-                    <div class="ticket-header">
-                        <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <h5 class="m-0">{{ ticket.ticket_type.event.name }}</h5>
-                                <p class="m-0 small">{{ ticket.ticket_type.event.event_date|date:"l, j \d\e F \d\e Y" }} a las {{ ticket.ticket_type.event.event_date|date:"H:i" }}</p>
-                            </div>
-                            <div class="col-md-4 text-md-end">
-                                <span class="badge {% if ticket.is_used %}bg-danger{% else %}bg-success{% endif %}">
-                                    {% if ticket.is_used %}Utilizada{% else %}No utilizada{% endif %}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="ticket-body">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="ticket-qr">
-                                    <img src="{% url 'eventos:ticket_qr' ticket.id %}" alt="Código QR" class="img-fluid">
-                                    <p class="small text-muted mt-2">{{ ticket.ticket_code }}</p>
-                                </div>
-                            </div>
-                            <div class="col-md-8">
-                                <h6 class="mb-3">Detalles de la Entrada</h6>
-                                <ul class="list-unstyled">
-                                    <li><strong>Tipo:</strong> {{ ticket.ticket_type.name }}</li>
-                                    <li><strong>Precio:</strong> {{ ticket.ticket_type.price }} €</li>
-                                    <li><strong>Fecha de Compra:</strong> {{ ticket.purchase_date|date:"j/m/Y H:i" }}</li>
-                                    <li><strong>Ubicación:</strong> {{ ticket.ticket_type.event.location }}</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="ticket-footer">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <p class="m-0"><strong>Estado:</strong> 
-                                {% if ticket.is_used %}
-                                <span class="text-danger">Utilizada</span>
-                                {% elif ticket.ticket_type.event.event_date < now %}
-                                <span class="text-warning">Evento finalizado</span>
-                                {% else %}
-                                <span class="text-success">Válida</span>
-                                {% endif %}
-                            </p>
-                            <a href="#" class="btn btn-sm btn-outline-primary" onclick="window.print()">
-                                <i class="fas fa-print me-1"></i>Imprimir
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="alert alert-info">
-                    <p>No tienes entradas {% if selected_event or selected_status %}con los filtros seleccionados{% endif %}.</p>
-                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary btn-sm">Explorar eventos</a>
-                </div>
-            {% endif %}
-        </div>
-        
-        <div class="col-lg-3">
-            <!-- Resumen de Entradas -->
-            <div class="card sticky-top" style="top: 100px;">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="m-0">Resumen</h5>
+            <!-- Configuración de Cuenta -->
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h5 class="m-0">Configuración de Cuenta</h5>
                 </div>
                 <div class="card-body">
-                    <ul class="list-group">
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Total de entradas
-                            <span class="badge bg-primary rounded-pill">{{ tickets.count }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Entradas utilizadas
-                            <span class="badge bg-danger rounded-pill">{{ tickets|filter_by:"is_used,True"|length }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            Entradas no utilizadas
-                            <span class="badge bg-success rounded-pill">{{ tickets|filter_by:"is_used,False"|length }}</span>
-                        </li>
-                    </ul>
-                </div>
-                <div class="card-footer">
-                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary w-100">Explorar eventos</a>
+                    <div class="list-group">
+                        {% if not user.is_staff %}
+                        <a href="{% url 'eventos:my_tickets' %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Mis Entradas</h5>
+                                <small><i class="fas fa-chevron-right"></i></small>
+                            </div>
+                            <p class="mb-1">Ver y gestionar todas tus entradas compradas.</p>
+                        </a>
+                        {% endif %}
+                        {% if user.is_staff %}
+                        <a href="{% url 'eventos:dashboard' %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Panel de Control</h5>
+                                <small><i class="fas fa-chevron-right"></i></small>
+                            </div>
+                            <p class="mb-1">Accede al panel de administración y estadísticas.</p>
+                        </a>
+                        <a href="/admin/" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Administración Django</h5>
+                                <small><i class="fas fa-chevron-right"></i></small>
+                            </div>
+                            <p class="mb-1">Acceso al panel de administración de Django.</p>
+                        </a>
+                        {% endif %}
+                        <!-- Corregido: Usar formulario POST para el cierre de sesión en lugar de enlace directo -->
+                        <form method="post" action="{% url 'logout' %}" class="list-group-item list-group-item-action list-group-item-danger">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-link text-danger p-0" style="text-decoration: none; width: 100%; text-align: left;">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1">Cerrar Sesión</h5>
+                                    <small><i class="fas fa-sign-out-alt"></i></small>
+                                </div>
+                                <p class="mb-1">Salir de tu cuenta.</p>
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>

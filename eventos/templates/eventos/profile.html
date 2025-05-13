@@ -191,13 +191,17 @@
                             <p class="mb-1">Acceso al panel de administración de Django.</p>
                         </a>
                         {% endif %}
-                        <a href="{% url 'logout' %}" class="list-group-item list-group-item-action list-group-item-danger">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h5 class="mb-1">Cerrar Sesión</h5>
-                                <small><i class="fas fa-sign-out-alt"></i></small>
-                            </div>
-                            <p class="mb-1">Salir de tu cuenta.</p>
-                        </a>
+                        <!-- Corregido: Usar formulario POST para el cierre de sesión en lugar de enlace directo -->
+                        <form method="post" action="{% url 'logout' %}" class="list-group-item list-group-item-action list-group-item-danger">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-link text-danger p-0" style="text-decoration: none; width: 100%; text-align: left;">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h5 class="mb-1">Cerrar Sesión</h5>
+                                    <small><i class="fas fa-sign-out-alt"></i></small>
+                                </div>
+                                <p class="mb-1">Salir de tu cuenta.</p>
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
