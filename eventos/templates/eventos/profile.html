@@ -1,7 +1,7 @@
 {% extends 'eventos/base.html' %}
 {% load crispy_forms_tags %}
 
-{% block title %}Mi Perfil - EventosYA{% endblock %}
+{% block title %}Mi Perfil - CamEventos{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -30,7 +30,8 @@
                 </div>
             </div>
             
-            <!-- Estadísticas del Usuario -->
+            {% if not user.is_staff %}
+            <!-- Estadísticas del Usuario (solo para usuarios normales) -->
             <div class="card">
                 <div class="card-header bg-light">
                     <h5 class="m-0">Mis Estadísticas</h5>
@@ -72,6 +73,30 @@
                     </div>
                 </div>
             </div>
+            {% else %}
+            <!-- Panel para administradores -->
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="m-0">Panel de Administrador</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'eventos:dashboard' %}" class="btn btn-primary mb-2">
+                            <i class="fas fa-chart-line me-2"></i>Panel de Control
+                        </a>
+                        <a href="{% url 'eventos:verify_ticket' %}" class="btn btn-success mb-2">
+                            <i class="fas fa-qrcode me-2"></i>Verificar Entradas
+                        </a>
+                        <a href="{% url 'eventos:event_create' %}" class="btn btn-info mb-2">
+                            <i class="fas fa-plus-circle me-2"></i>Crear Evento
+                        </a>
+                        <a href="/admin/" class="btn btn-secondary">
+                            <i class="fas fa-cogs me-2"></i>Administración Django
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         
         <div class="col-lg-8">
@@ -141,6 +166,7 @@
                 </div>
                 <div class="card-body">
                     <div class="list-group">
+                        {% if not user.is_staff %}
                         <a href="{% url 'eventos:my_tickets' %}" class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
                                 <h5 class="mb-1">Mis Entradas</h5>
@@ -148,6 +174,7 @@
                             </div>
                             <p class="mb-1">Ver y gestionar todas tus entradas compradas.</p>
                         </a>
+                        {% endif %}
                         {% if user.is_staff %}
                         <a href="{% url 'eventos:dashboard' %}" class="list-group-item list-group-item-action">
                             <div class="d-flex w-100 justify-content-between">
@@ -155,6 +182,13 @@
                                 <small><i class="fas fa-chevron-right"></i></small>
                             </div>
                             <p class="mb-1">Accede al panel de administración y estadísticas.</p>
+                        </a>
+                        <a href="/admin/" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1">Administración Django</h5>
+                                <small><i class="fas fa-chevron-right"></i></small>
+                            </div>
+                            <p class="mb-1">Acceso al panel de administración de Django.</p>
                         </a>
                         {% endif %}
                         <a href="{% url 'logout' %}" class="list-group-item list-group-item-action list-group-item-danger">

@@ -1,0 +1,22 @@
+<svg viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .title { font: bold 40px 'Montserrat', sans-serif; fill: #343a40; }
+    .subtitle { font: 16px 'Poppins', sans-serif; fill: #6c757d; }
+    .icon { fill: #343a40; }
+  </style>
+  
+  <!-- Icono de ticket -->
+  <g class="icon" transform="translate(30, 50)">
+    <path d="M44,18v-8h-4V6c0-3.3-2.7-6-6-6H10C6.7,0,4,2.7,4,6v4H0v8h4v4H0v8h4v4c0,3.3,2.7,6,6,6h24c3.3,0,6-2.7,6-6v-4h4v-8h-4v-4H44z M36,38c0,1.1-0.9,2-2,2H10c-1.1,0-2-0.9-2-2V6c0-1.1,0.9-2,2-2h24c1.1,0,2,0.9,2,2V38z"/>
+    <circle cx="14" cy="13" r="3"/>
+    <circle cx="14" cy="29" r="3"/>
+    <circle cx="30" cy="13" r="3"/>
+    <circle cx="30" cy="29" r="3"/>
+  </g>
+  
+  <!-- Nombre -->
+  <text x="85" y="50" class="title">CamEventos</text>
+  
+  <!-- Eslogan -->
+  <text x="90" y="70" class="subtitle">Sistema de Gestión de Eventos</text>
+</svg>

@@ -135,6 +135,16 @@ def event_create(request):
     if request.method == 'POST':
         form = EventForm(request.POST, request.FILES)
         if form.is_valid():
+            # Verificar que la fecha del evento no esté en el pasado
+            event_date = form.cleaned_data['event_date']
+            if event_date < timezone.now():
+                messages.error(request, 'No se pueden crear eventos en el pasado. Por favor, selecciona una fecha futura.')
+                return render(request, 'eventos/event_form.html', {
+                    'form': form,
+                    'title': 'Crear Evento',
+                    'button_text': 'Crear'
+                })
+            
             event = form.save()
             messages.success(request, 'Evento creado con éxito.')
             return redirect('eventos:event_detail', pk=event.pk)
@@ -156,6 +166,17 @@ def event_update(request, pk):
     if request.method == 'POST':
         form = EventForm(request.POST, request.FILES, instance=event)
         if form.is_valid():
+            # Verificar que la fecha del evento no esté en el pasado
+            event_date = form.cleaned_data['event_date']
+            if event_date < timezone.now():
+                messages.error(request, 'No se pueden actualizar eventos con fechas en el pasado. Por favor, selecciona una fecha futura.')
+                return render(request, 'eventos/event_form.html', {
+                    'form': form,
+                    'event': event,
+                    'title': 'Editar Evento',
+                    'button_text': 'Actualizar'
+                })
+                
             form.save()
             messages.success(request, 'Evento actualizado con éxito.')
             return redirect('eventos:event_detail', pk=event.pk)
@@ -355,7 +376,7 @@ def payment_process(request, ticket_id):
         return redirect('eventos:ticket_detail', ticket_id=ticket.id)
     
     if request.method == 'POST':
-        # Simulación simple de un proceso de pago
+        # Obtener datos del formulario
         payment_method = request.POST.get('payment_method')
         
         if not payment_method:
@@ -363,6 +384,39 @@ def payment_process(request, ticket_id):
             return render(request, 'eventos/payment_process.html', {'ticket': ticket})
         
         try:
+            # Procesar información de tarjeta (si aplica)
+            card_last_digits = None
+            card_type = None
+            
+            if payment_method in ['credit_card', 'debit_card']:
+                card_number = request.POST.get('card_number', '').replace(' ', '')
+                card_expiry = request.POST.get('card_expiry')
+                card_cvv = request.POST.get('card_cvv')
+                card_holder = request.POST.get('card_holder')
+                
+                # Validaciones básicas
+                if not card_number or len(card_number) < 13:
+                    messages.error(request, 'Número de tarjeta inválido.')
+                    return render(request, 'eventos/payment_process.html', {'ticket': ticket})
+                
+                if not card_expiry or not card_cvv or not card_holder:
+                    messages.error(request, 'Por favor, completa todos los campos de la tarjeta.')
+                    return render(request, 'eventos/payment_process.html', {'ticket': ticket})
+                
+                # Guardar últimos 4 dígitos (en un sistema real, no guardaríamos el número completo)
+                card_last_digits = card_number[-4:]
+                
+                # Determinar tipo de tarjeta según el primer dígito
+                first_digit = card_number[0] if card_number else ''
+                if first_digit == '4':
+                    card_type = 'Visa'
+                elif first_digit == '5':
+                    card_type = 'MasterCard'
+                elif first_digit == '3':
+                    card_type = 'American Express'
+                else:
+                    card_type = 'Otra'
+            
             # Crear registro de pago
             payment = Payment(
                 user=request.user,
@@ -370,7 +424,9 @@ def payment_process(request, ticket_id):
                 amount=ticket.ticket_type.price,
                 payment_method=payment_method,
                 status='completed',
-                transaction_id=str(uuid.uuid4())[:8]  # Simulación de ID de transacción
+                transaction_id=str(uuid.uuid4())[:8],  # Simulación de ID de transacción
+                card_last_digits=card_last_digits,
+                card_type=card_type
             )
             payment.save()
             
@@ -542,10 +598,25 @@ def verify_ticket(request):
                     'message': 'El evento aún no ha comenzado.'
                 })
             
+            # Verificar si el evento ha finalizado (considerando duración de 4 horas)
+            event_start = ticket.ticket_type.event.event_date
+            event_end = event_start + timezone.timedelta(hours=4)  # 4 horas de duración
+            current_time = timezone.now()
+            
+            if current_time > event_end:
+                return JsonResponse({
+                    'valid': False,
+                    'message': 'El evento ha finalizado. La entrada ya no es válida.'
+                })
+            
             # Si todo está correcto, marcar como utilizada
             ticket.is_used = True
             ticket.entry_time = entry_time
-            ticket.save(update_fields=['is_used', 'entry_time'])
+            
+            # Incrementar contador de escaneos
+            ticket.scan_count = ticket.scan_count + 1
+            
+            ticket.save(update_fields=['is_used', 'entry_time', 'scan_count'])
             
             # Devolver información de la entrada verificada
             return JsonResponse({
@@ -558,7 +629,8 @@ def verify_ticket(request):
                     'purchase_date': ticket.purchase_date.strftime('%d/%m/%Y %H:%M'),
                     'seat_number': ticket.seat_number or 'N/A',
                     'section': ticket.section or 'N/A',
-                    'entry_time': entry_time.strftime('%d/%m/%Y %H:%M') if entry_time else 'N/A'
+                    'entry_time': entry_time.strftime('%d/%m/%Y %H:%M') if entry_time else 'N/A',
+                    'scan_count': ticket.scan_count
                 },
                 'message': 'Entrada verificada con éxito.'
             })
@@ -647,22 +719,29 @@ def profile(request):
             
         profile_form = UserProfileForm(instance=profile)
     
-    # Obtener estadísticas de tickets del usuario
-    tickets = Ticket.objects.filter(user=request.user)
-    upcoming_tickets = tickets.filter(ticket_type__event__event_date__gte=timezone.now())
-    used_tickets = tickets.filter(is_used=True)
-    paid_tickets = tickets.filter(is_paid=True)
-    unpaid_tickets = tickets.filter(is_paid=False)
-    
-    return render(request, 'eventos/profile.html', {
+    # Crear contexto base
+    context = {
         'user_form': user_form,
         'profile_form': profile_form,
-        'ticket_count': tickets.count(),
-        'upcoming_tickets': upcoming_tickets.count(),
-        'used_tickets': used_tickets.count(),
-        'paid_tickets': paid_tickets.count(),
-        'unpaid_tickets': unpaid_tickets.count()
-    })
+    }
+    
+    # Añadir estadísticas de tickets solo para usuarios normales, no para administradores
+    if not request.user.is_staff:
+        tickets = Ticket.objects.filter(user=request.user)
+        upcoming_tickets = tickets.filter(ticket_type__event__event_date__gte=timezone.now())
+        used_tickets = tickets.filter(is_used=True)
+        paid_tickets = tickets.filter(is_paid=True)
+        unpaid_tickets = tickets.filter(is_paid=False)
+        
+        context.update({
+            'ticket_count': tickets.count(),
+            'upcoming_tickets': upcoming_tickets.count(),
+            'used_tickets': used_tickets.count(),
+            'paid_tickets': paid_tickets.count(),
+            'unpaid_tickets': unpaid_tickets.count()
+        })
+    
+    return render(request, 'eventos/profile.html', context)
 
 # -------------------------------------------------------------
 # Vistas de administración y estadísticas

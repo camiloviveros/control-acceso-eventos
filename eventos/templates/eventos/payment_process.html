@@ -1,6 +1,6 @@
 {% extends 'eventos/base.html' %}
 
-{% block title %}Procesar Pago - EventosYA{% endblock %}
+{% block title %}Procesar Pago - CamEventos{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -38,7 +38,7 @@
                                 {% csrf_token %}
                                 <div class="mb-3">
                                     <label class="form-label"><strong>Método de Pago:</strong></label>
-                                    <select name="payment_method" class="form-select" required>
+                                    <select name="payment_method" class="form-select" required id="payment-method">
                                         <option value="">Seleccionar método de pago</option>
                                         <option value="credit_card">Tarjeta de Crédito</option>
                                         <option value="debit_card">Tarjeta de Débito</option>
@@ -46,6 +46,30 @@
                                         <option value="nequi">Nequi</option>
                                         <option value="daviplata">Daviplata</option>
                                     </select>
+                                </div>
+                                
+                                <!-- Campos de tarjeta de crédito/débito -->
+                                <div id="card-fields" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>Número de Tarjeta:</strong></label>
+                                        <input type="text" name="card_number" class="form-control" placeholder="XXXX XXXX XXXX XXXX" maxlength="19" id="card-number">
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label"><strong>Fecha de Expiración:</strong></label>
+                                            <input type="text" name="card_expiry" class="form-control" placeholder="MM/AA" maxlength="5">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label"><strong>Código de Seguridad:</strong></label>
+                                            <input type="text" name="card_cvv" class="form-control" placeholder="CVV" maxlength="4">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>Nombre en la Tarjeta:</strong></label>
+                                        <input type="text" name="card_holder" class="form-control" placeholder="Nombre como aparece en la tarjeta">
+                                    </div>
                                 </div>
                                 
                                 <div class="mb-3">
@@ -74,7 +98,7 @@
                         <ul class="mb-0">
                             <li>Una vez completado el pago, podrás acceder a tu entrada con código QR.</li>
                             <li>El código QR es único y no puede ser duplicado.</li>
-                            <li>La entrada será válida solo hasta 2 horas después de finalizado el evento.</li>
+                            <li>La entrada será válida hasta 4 horas después de iniciado el evento.</li>
                         </ul>
                     </div>
                 </div>
@@ -82,4 +106,38 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const paymentMethod = document.getElementById('payment-method');
+        const cardFields = document.getElementById('card-fields');
+        const cardNumber = document.getElementById('card-number');
+        
+        // Mostrar/ocultar campos de tarjeta según el método seleccionado
+        paymentMethod.addEventListener('change', function() {
+            if (this.value === 'credit_card' || this.value === 'debit_card') {
+                cardFields.style.display = 'block';
+            } else {
+                cardFields.style.display = 'none';
+            }
+        });
+        
+        // Formatear número de tarjeta
+        if (cardNumber) {
+            cardNumber.addEventListener('input', function(e) {
+                // Eliminar espacios y caracteres no numéricos
+                let value = this.value.replace(/\D/g, '');
+                
+                // Añadir espacios cada 4 dígitos
+                if (value.length > 0) {
+                    value = value.match(new RegExp('.{1,4}', 'g')).join(' ');
+                }
+                
+                this.value = value;
+            });
+        }
+    });
+</script>
 {% endblock %}

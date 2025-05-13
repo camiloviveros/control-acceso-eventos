@@ -1,6 +1,6 @@
 {% extends 'eventos/base.html' %}
 
-{% block title %}EventosYA - Tu plataforma de eventos{% endblock %}
+{% block title %}CamEventos - Tu plataforma de eventos{% endblock %}
 
 {% block content %}
 <!-- Hero Section -->
@@ -51,8 +51,8 @@
                     <div class="stat-icon bg-info text-white">
                         <i class="fas fa-users"></i>
                     </div>
-                    <h3 class="stat-number">{% if user.is_authenticated %}{{ user_tickets_count }}{% else %}0{% endif %}</h3>
-                    <p class="stat-text">{% if user.is_authenticated %}Tus entradas{% else %}Entradas{% endif %}</p>
+                    <h3 class="stat-number">{% if user.is_authenticated and not user.is_staff %}{{ user_tickets_count }}{% else %}0{% endif %}</h3>
+                    <p class="stat-text">{% if user.is_authenticated and not user.is_staff %}Tus entradas{% else %}Entradas{% endif %}</p>
                 </div>
             </div>
         </div>
@@ -156,7 +156,7 @@
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-8">
-                <h2 class="fw-bold mb-3">¿Listo para comenzar con EventosYA?</h2>
+                <h2 class="fw-bold mb-3">¿Listo para comenzar con CamEventos?</h2>
                 <p class="lead mb-0">Únete a nuestra plataforma y comienza a disfrutar de los mejores eventos.</p>
             </div>
             <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">

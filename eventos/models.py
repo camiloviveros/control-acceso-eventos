@@ -59,13 +59,16 @@ class Ticket(models.Model):
     ticket_code = models.CharField(max_length=255, unique=True, default=uuid.uuid4, verbose_name="Código de entrada")
     is_used = models.BooleanField(default=False, verbose_name="Utilizada")
     
-    # Nuevos campos añadidos
+    # Campos existentes
     seat_number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número de asiento")
     section = models.CharField(max_length=50, blank=True, null=True, verbose_name="Sección")
     entry_time = models.DateTimeField(blank=True, null=True, verbose_name="Hora de entrada")
     exit_time = models.DateTimeField(blank=True, null=True, verbose_name="Hora de salida")
     expiration_date = models.DateTimeField(blank=True, null=True, verbose_name="Fecha de expiración")
     is_paid = models.BooleanField(default=False, verbose_name="Pagado")
+    
+    # Nuevo campo para contador de escaneos
+    scan_count = models.PositiveIntegerField(default=0, verbose_name="Número de escaneos")
     
     class Meta:
         verbose_name = "Entrada"
@@ -82,9 +85,9 @@ class Ticket(models.Model):
                 ticket_type.available_quantity -= 1
                 ticket_type.save()
                 
-                # Establecer fecha de expiración (2 horas después del evento)
+                # Establecer fecha de expiración (4 horas después del evento en lugar de 2)
                 if not self.expiration_date and self.ticket_type.event.event_date:
-                    self.expiration_date = self.ticket_type.event.event_date + timezone.timedelta(hours=2)
+                    self.expiration_date = self.ticket_type.event.event_date + timezone.timedelta(hours=4)
             else:
                 raise ValueError("No hay entradas disponibles de este tipo")
         super().save(*args, **kwargs)
@@ -109,6 +112,10 @@ class Payment(models.Model):
     payment_method = models.CharField(max_length=50, verbose_name="Método de pago")
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending', verbose_name="Estado")
     transaction_id = models.CharField(max_length=100, blank=True, null=True, verbose_name="ID de transacción")
+    
+    # Nuevos campos para información de tarjeta
+    card_last_digits = models.CharField(max_length=4, blank=True, null=True, verbose_name="Últimos 4 dígitos")
+    card_type = models.CharField(max_length=20, blank=True, null=True, verbose_name="Tipo de tarjeta")
     
     class Meta:
         verbose_name = "Pago"
