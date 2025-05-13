@@ -137,7 +137,7 @@
                             <td>{{ event.name }}</td>
                             <td>{{ event.event_date|date:"d/m/Y H:i" }}</td>
                             <td>{{ event.ticket_count }}</td>
-                            <td>{{ event.revenue|default:"0.00" }} €</td>
+                            <td>$ {{ event.revenue|default:"0.00"|floatformat:0 }} COP</td>
                             <td>
                                 {% with occupancy=event.ticket_count|floatformat:0|default:"0"|add:0 %}
                                 {% with percentage=occupancy|multiply:100|divide:event.capacity %}

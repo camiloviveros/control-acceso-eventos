@@ -519,17 +519,19 @@ def ticket_qr(request, ticket_id):
     if not ticket.is_paid and not request.user.is_staff:
         return HttpResponse("Esta entrada no ha sido pagada", status=403)
     
-    # Generar código QR
+    # Configurar el tamaño y calidad del QR
     qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        version=4,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,  # Mayor corrección de errores
         box_size=10,
         border=4,
     )
+    
+    # Añadir los datos del ticket
     qr.add_data(ticket.ticket_code)
     qr.make(fit=True)
     
-    # Crear imagen
+    # Crear imagen con mayor calidad
     img = qr.make_image(fill_color="black", back_color="white")
     
     # Guardar la imagen en un buffer
@@ -591,23 +593,9 @@ def verify_ticket(request):
                     'message': 'Esta entrada no ha sido pagada.'
                 })
             
-            # Verificar si el evento ya comenzó
-            if ticket.ticket_type.event.event_date > timezone.now():
-                return JsonResponse({
-                    'valid': False,
-                    'message': 'El evento aún no ha comenzado.'
-                })
-            
-            # Verificar si el evento ha finalizado (considerando duración de 4 horas)
-            event_start = ticket.ticket_type.event.event_date
-            event_end = event_start + timezone.timedelta(hours=4)  # 4 horas de duración
-            current_time = timezone.now()
-            
-            if current_time > event_end:
-                return JsonResponse({
-                    'valid': False,
-                    'message': 'El evento ha finalizado. La entrada ya no es válida.'
-                })
+            # Quitamos estas verificaciones para pruebas
+            # No verificamos si el evento comenzó o finalizó
+            # De esta forma se puede escanear en cualquier momento
             
             # Si todo está correcto, marcar como utilizada
             ticket.is_used = True
@@ -786,3 +774,4 @@ def dashboard(request):
         logger.error(f"Error en dashboard: {str(e)}")
         messages.error(request, f"Error al cargar el panel de control: {str(e)}")
         return redirect('/')  # Usar URL absoluta
+            

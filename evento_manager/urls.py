@@ -11,7 +11,7 @@ urlpatterns = [
     
     # URLs de autenticación global
     path('iniciar-sesion/', auth_views.LoginView.as_view(template_name='eventos/login.html'), name='login'),
-    path('cerrar-sesion/', auth_views.LogoutView.as_view(next_page='/'), name='logout'),
+    path('cerrar-sesion/', auth_views.LogoutView.as_view(template_name='eventos/logout.html'), name='logout'),
     
     # Recuperación de contraseña
     path('reiniciar-password/', 
