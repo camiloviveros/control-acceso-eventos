@@ -1,29 +1,29 @@
-# Importaciones del sistema Django
+# eventos/views.py
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.utils import timezone
-from django.db.models import Q, Count, Sum, Prefetch
 from django.http import JsonResponse, HttpResponse
-from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.urls import reverse_lazy
-from django.contrib.auth.models import User
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db import transaction
+from django.urls import reverse
 from datetime import datetime
 
-# Importaciones de bibliotecas externas
 import qrcode
 from io import BytesIO
-import uuid
 import logging
 
-# Importaciones locales de la aplicación
 from .models import Event, TicketType, Ticket, UserProfile, Payment
 from .forms import EventForm, TicketTypeForm, TicketPurchaseForm, UserRegistrationForm, UserProfileForm
+from .repositories import (
+    EventRepository, TicketTypeRepository, TicketRepository, 
+    PaymentRepository, UserProfileRepository
+)
+from .services import EventService, TicketTypeService, TicketService
 
 # Configurar logging para mejor depuración
 logger = logging.getLogger(__name__)
@@ -40,23 +40,19 @@ class IndexView(ListView):
     
     def get_queryset(self):
         """Obtener los 6 próximos eventos ordenados por fecha"""
-        return Event.objects.filter(
-            event_date__gte=timezone.now()
-        ).order_by('event_date')[:6]
+        return EventRepository.get_upcoming_events(limit=6)
     
     def get_context_data(self, **kwargs):
         """Añadir estadísticas adicionales al contexto"""
         context = super().get_context_data(**kwargs)
         # Contar eventos próximos y total
-        context['upcoming_count'] = Event.objects.filter(
-            event_date__gte=timezone.now()
-        ).count()
-        context['total_events'] = Event.objects.count()
+        context['upcoming_count'] = EventRepository.get_upcoming_events().count()
+        context['total_events'] = EventRepository.get_all_events().count()
         
         # Añadir contador de entradas si el usuario está autenticado
         if self.request.user.is_authenticated:
-            context['user_tickets_count'] = Ticket.objects.filter(
-                user=self.request.user
+            context['user_tickets_count'] = TicketRepository.get_tickets_by_user(
+                self.request.user.id
             ).count()
         return context
 
@@ -70,27 +66,15 @@ class EventListView(ListView):
     
     def get_queryset(self):
         """Obtener eventos con filtros aplicados"""
-        queryset = Event.objects.all()
-        
-        # Filtrar por búsqueda
         query = self.request.GET.get('q')
-        if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query) | 
-                Q(description__icontains=query) |
-                Q(location__icontains=query)
-            )
-        
-        # Filtrar por fecha
         date_filter = self.request.GET.get('date')
-        if date_filter == 'upcoming':
-            queryset = queryset.filter(event_date__gte=timezone.now())
-        elif date_filter == 'past':
-            queryset = queryset.filter(event_date__lt=timezone.now())
-        
-        # Ordenar resultados
         ordering = self.request.GET.get('order_by', '-event_date')
-        return queryset.order_by(ordering)
+        
+        return EventRepository.search_events(
+            query=query, 
+            date_filter=date_filter, 
+            order_by=ordering
+        )
     
     def get_context_data(self, **kwargs):
         """Añadir parámetros de filtrado al contexto"""
@@ -112,14 +96,14 @@ class EventDetailView(DetailView):
         """Añadir tipos de entradas y entradas del usuario al contexto"""
         context = super().get_context_data(**kwargs)
         # Obtener todos los tipos de entradas para este evento
-        context['ticket_types'] = TicketType.objects.filter(event=self.object)
+        context['ticket_types'] = TicketTypeRepository.get_ticket_types_by_event(self.object.id)
         
         # Si el usuario está autenticado, obtener sus entradas para este evento
         if self.request.user.is_authenticated:
-            user_tickets = Ticket.objects.filter(
-                user=self.request.user,
-                ticket_type__event=self.object
-            ).select_related('ticket_type')  # Optimización: reducir consultas SQL
+            user_tickets = TicketRepository.get_tickets_by_user_and_event(
+                self.request.user.id,
+                self.object.id
+            )
             
             context['user_tickets'] = user_tickets
         
@@ -135,19 +119,18 @@ def event_create(request):
     if request.method == 'POST':
         form = EventForm(request.POST, request.FILES)
         if form.is_valid():
-            # Verificar que la fecha del evento no esté en el pasado
-            event_date = form.cleaned_data['event_date']
-            if event_date < timezone.now():
-                messages.error(request, 'No se pueden crear eventos en el pasado. Por favor, selecciona una fecha futura.')
+            try:
+                # Usar el servicio para crear el evento
+                event = EventService.create_event(form.save(commit=False))
+                messages.success(request, 'Evento creado con éxito.')
+                return redirect('eventos:event_detail', pk=event.pk)
+            except ValueError as e:
+                messages.error(request, str(e))
                 return render(request, 'eventos/event_form.html', {
                     'form': form,
                     'title': 'Crear Evento',
                     'button_text': 'Crear'
                 })
-            
-            event = form.save()
-            messages.success(request, 'Evento creado con éxito.')
-            return redirect('eventos:event_detail', pk=event.pk)
     else:
         form = EventForm()
     
@@ -166,20 +149,20 @@ def event_update(request, pk):
     if request.method == 'POST':
         form = EventForm(request.POST, request.FILES, instance=event)
         if form.is_valid():
-            # Verificar que la fecha del evento no esté en el pasado
-            event_date = form.cleaned_data['event_date']
-            if event_date < timezone.now():
-                messages.error(request, 'No se pueden actualizar eventos con fechas en el pasado. Por favor, selecciona una fecha futura.')
+            try:
+                # Usar el servicio para actualizar el evento
+                event_data = form.save(commit=False)
+                EventService.update_event(event, event_data.__dict__)
+                messages.success(request, 'Evento actualizado con éxito.')
+                return redirect('eventos:event_detail', pk=event.pk)
+            except ValueError as e:
+                messages.error(request, str(e))
                 return render(request, 'eventos/event_form.html', {
                     'form': form,
                     'event': event,
                     'title': 'Editar Evento',
                     'button_text': 'Actualizar'
                 })
-                
-            form.save()
-            messages.success(request, 'Evento actualizado con éxito.')
-            return redirect('eventos:event_detail', pk=event.pk)
     else:
         form = EventForm(instance=event)
     
@@ -198,10 +181,8 @@ def event_delete(request, pk):
     
     if request.method == 'POST':
         try:
-            # Guardar nombre para mensaje
-            event_name = event.name
-            # Eliminar evento - esto eliminará cascada todos los ticket_types y tickets asociados
-            event.delete()
+            # Usar el servicio para eliminar el evento
+            event_name = EventService.delete_event(event)
             messages.success(request, f'Evento "{event_name}" eliminado con éxito.')
             return redirect('eventos:event_list')
         except Exception as e:
@@ -222,19 +203,20 @@ def ticket_type_create(request, event_id):
     """Vista para crear un nuevo tipo de entrada para un evento (solo staff)"""
     event = get_object_or_404(Event, pk=event_id)
     
-    # Verificar que el evento no haya pasado
-    if event.event_date < timezone.now():
-        messages.error(request, 'No se pueden crear tipos de entradas para eventos pasados.')
-        return redirect('eventos:event_detail', pk=event_id)
-    
     if request.method == 'POST':
         form = TicketTypeForm(request.POST)
         if form.is_valid():
-            ticket_type = form.save(commit=False)
-            ticket_type.event = event
-            ticket_type.save()
-            messages.success(request, f'Tipo de entrada "{ticket_type.name}" creado con éxito.')
-            return redirect('eventos:event_detail', pk=event.pk)
+            try:
+                # Usar el servicio para crear el tipo de entrada
+                ticket_type = TicketTypeService.create_ticket_type(event, form.save(commit=False))
+                messages.success(request, f'Tipo de entrada "{ticket_type.name}" creado con éxito.')
+                return redirect('eventos:event_detail', pk=event.pk)
+            except ValueError as e:
+                messages.error(request, str(e))
+                return render(request, 'eventos/ticket_type_form.html', {
+                    'form': form,
+                    'event': event
+                })
     else:
         form = TicketTypeForm()
     
@@ -250,9 +232,9 @@ def ticket_type_create(request, event_id):
 @login_required
 def ticket_purchase(request, ticket_type_id):
     """Vista para la compra de entradas"""
-    ticket_type = get_object_or_404(TicketType, pk=ticket_type_id)
+    ticket_type = TicketTypeRepository.get_ticket_type_by_id(ticket_type_id)
     
-    # Verificar disponibilidad
+    # Verificar disponibilidad usando el repositorio
     if not ticket_type.is_available():
         messages.error(request, 'Este tipo de entrada no está disponible.')
         return redirect('eventos:event_detail', pk=ticket_type.event.pk)
@@ -267,24 +249,9 @@ def ticket_purchase(request, ticket_type_id):
         if form.is_valid():
             quantity = form.cleaned_data['quantity']
             
-            # Verificar que hay suficientes entradas disponibles
-            if quantity > ticket_type.available_quantity:
-                messages.error(request, f'Solo hay {ticket_type.available_quantity} entradas disponibles.')
-                return redirect('eventos:ticket_purchase', ticket_type_id=ticket_type.pk)
-            
-            # Crear las entradas
-            tickets = []
             try:
-                # Usar transacción para garantizar que todas las entradas se crean o ninguna
-                with transaction.atomic():
-                    for _ in range(quantity):
-                        ticket = Ticket(
-                            ticket_type=ticket_type,
-                            user=request.user,
-                            ticket_code=str(uuid.uuid4())  # Generar código único
-                        )
-                        ticket.save()
-                        tickets.append(ticket)
+                # Usar el servicio para comprar las entradas
+                tickets = TicketService.purchase_tickets(request.user, ticket_type, quantity)
                 
                 # Mensaje de éxito y redirección al primer ticket para seleccionar asiento/pagar
                 messages.success(request, f'Has reservado {quantity} entrada(s) con éxito. Ahora selecciona asiento y completa el pago.')
@@ -298,6 +265,9 @@ def ticket_purchase(request, ticket_type_id):
                 else:
                     return redirect('eventos:my_tickets')
                 
+            except ValueError as e:
+                messages.error(request, str(e))
+                return redirect('eventos:ticket_purchase', ticket_type_id=ticket_type.pk)
             except Exception as e:
                 logger.error(f"Error al crear entradas: {str(e)}")
                 messages.error(request, f'Error al procesar la compra: {str(e)}')
@@ -314,7 +284,13 @@ def ticket_purchase(request, ticket_type_id):
 @login_required
 def seat_selection(request, ticket_id):
     """Vista para seleccionar asiento para una entrada"""
-    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    # Usar el repositorio para obtener la entrada
+    ticket = TicketRepository.get_ticket_by_id(ticket_id)
+    
+    # Verificar que la entrada pertenece al usuario actual
+    if ticket.user.id != request.user.id:
+        messages.error(request, 'No tienes permiso para acceder a esta entrada.')
+        return redirect('eventos:my_tickets')
     
     # Verificar que la entrada no esté pagada
     if ticket.is_paid:
@@ -326,11 +302,8 @@ def seat_selection(request, ticket_id):
         messages.warning(request, 'Este evento no requiere selección de asientos.')
         return redirect('eventos:payment_process', ticket_id=ticket.id)
     
-    # Obtener asientos ocupados
-    taken_seats = Ticket.objects.filter(
-        ticket_type__event=ticket.ticket_type.event, 
-        seat_number__isnull=False
-    ).values_list('seat_number', flat=True)
+    # Obtener asientos ocupados usando el repositorio
+    taken_seats = TicketRepository.get_occupied_seats(ticket.ticket_type.event.id)
     
     if request.method == 'POST':
         seat_number = request.POST.get('seat_number')
@@ -343,21 +316,13 @@ def seat_selection(request, ticket_id):
                 'taken_seats': taken_seats
             })
         
-        # Verificar que el asiento no esté ocupado
-        if seat_number in taken_seats:
-            messages.error(request, 'Este asiento ya está ocupado. Por favor, selecciona otro.')
-            return render(request, 'eventos/seat_selection.html', {
-                'ticket': ticket,
-                'taken_seats': taken_seats
-            })
-        
-        # Asignar asiento
-        ticket.seat_number = seat_number
-        ticket.section = section
-        ticket.save()
-        
-        messages.success(request, 'Asiento seleccionado correctamente.')
-        return redirect('eventos:payment_process', ticket_id=ticket.id)
+        try:
+            # Usar el servicio para asignar asiento
+            TicketService.assign_seat(ticket, seat_number, section)
+            messages.success(request, 'Asiento seleccionado correctamente.')
+            return redirect('eventos:payment_process', ticket_id=ticket.id)
+        except ValueError as e:
+            messages.error(request, str(e))
     
     return render(request, 'eventos/seat_selection.html', {
         'ticket': ticket,
@@ -368,7 +333,13 @@ def seat_selection(request, ticket_id):
 @login_required
 def payment_process(request, ticket_id):
     """Vista para procesar el pago de una entrada"""
-    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    # Usar el repositorio para obtener la entrada
+    ticket = TicketRepository.get_ticket_by_id(ticket_id)
+    
+    # Verificar que la entrada pertenece al usuario actual
+    if ticket.user.id != request.user.id:
+        messages.error(request, 'No tienes permiso para acceder a esta entrada.')
+        return redirect('eventos:my_tickets')
     
     # Verificar que la entrada no haya sido pagada
     if ticket.is_paid:
@@ -376,67 +347,24 @@ def payment_process(request, ticket_id):
         return redirect('eventos:ticket_detail', ticket_id=ticket.id)
     
     if request.method == 'POST':
-        # Obtener datos del formulario
-        payment_method = request.POST.get('payment_method')
-        
-        if not payment_method:
-            messages.error(request, 'Por favor, selecciona un método de pago.')
-            return render(request, 'eventos/payment_process.html', {'ticket': ticket})
-        
         try:
-            # Procesar información de tarjeta (si aplica)
-            card_last_digits = None
-            card_type = None
+            # Obtener datos del formulario
+            payment_data = {
+                'payment_method': request.POST.get('payment_method'),
+                'card_number': request.POST.get('card_number', '').replace(' ', ''),
+                'card_expiry': request.POST.get('card_expiry'),
+                'card_cvv': request.POST.get('card_cvv'),
+                'card_holder': request.POST.get('card_holder')
+            }
             
-            if payment_method in ['credit_card', 'debit_card']:
-                card_number = request.POST.get('card_number', '').replace(' ', '')
-                card_expiry = request.POST.get('card_expiry')
-                card_cvv = request.POST.get('card_cvv')
-                card_holder = request.POST.get('card_holder')
-                
-                # Validaciones básicas
-                if not card_number or len(card_number) < 13:
-                    messages.error(request, 'Número de tarjeta inválido.')
-                    return render(request, 'eventos/payment_process.html', {'ticket': ticket})
-                
-                if not card_expiry or not card_cvv or not card_holder:
-                    messages.error(request, 'Por favor, completa todos los campos de la tarjeta.')
-                    return render(request, 'eventos/payment_process.html', {'ticket': ticket})
-                
-                # Guardar últimos 4 dígitos (en un sistema real, no guardaríamos el número completo)
-                card_last_digits = card_number[-4:]
-                
-                # Determinar tipo de tarjeta según el primer dígito
-                first_digit = card_number[0] if card_number else ''
-                if first_digit == '4':
-                    card_type = 'Visa'
-                elif first_digit == '5':
-                    card_type = 'MasterCard'
-                elif first_digit == '3':
-                    card_type = 'American Express'
-                else:
-                    card_type = 'Otra'
-            
-            # Crear registro de pago
-            payment = Payment(
-                user=request.user,
-                ticket=ticket,
-                amount=ticket.ticket_type.price,
-                payment_method=payment_method,
-                status='completed',
-                transaction_id=str(uuid.uuid4())[:8],  # Simulación de ID de transacción
-                card_last_digits=card_last_digits,
-                card_type=card_type
-            )
-            payment.save()
-            
-            # Actualizar estado de la entrada
-            ticket.is_paid = True
-            ticket.save(update_fields=['is_paid'])
+            # Usar el servicio para procesar el pago
+            payment = TicketService.process_payment(ticket, payment_data)
             
             messages.success(request, '¡Pago procesado con éxito! Ya puedes acceder a tu entrada con código QR.')
             return redirect('eventos:ticket_detail', ticket_id=ticket.id)
             
+        except ValueError as e:
+            messages.error(request, str(e))
         except Exception as e:
             logger.error(f"Error en proceso de pago: {str(e)}")
             messages.error(request, f'Error al procesar el pago: {str(e)}')
@@ -447,7 +375,13 @@ def payment_process(request, ticket_id):
 @login_required
 def ticket_detail(request, ticket_id):
     """Vista para mostrar el detalle de una entrada con su QR"""
-    ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    # Usar el repositorio para obtener la entrada
+    ticket = TicketRepository.get_ticket_by_id(ticket_id)
+    
+    # Verificar que la entrada pertenece al usuario actual
+    if ticket.user.id != request.user.id and not request.user.is_staff:
+        messages.error(request, 'No tienes permiso para acceder a esta entrada.')
+        return redirect('eventos:my_tickets')
     
     # Si la entrada no está pagada y el usuario no es staff, redirigir al proceso de pago
     if not ticket.is_paid and not request.user.is_staff:
@@ -463,45 +397,52 @@ def ticket_detail(request, ticket_id):
 @login_required
 def my_tickets(request):
     """Vista para mostrar las entradas del usuario"""
-    # Obtener todas las entradas del usuario ordenadas por fecha de compra
-    base_tickets = Ticket.objects.filter(user=request.user).select_related(
-        'ticket_type', 'ticket_type__event'
-    ).order_by('-purchase_date')
+    # Usar el repositorio para obtener las entradas del usuario
+    base_tickets = TicketRepository.get_tickets_by_user(request.user.id)
     
     # Filtrar por evento si se especifica
     event_id = request.GET.get('event')
     if event_id:
         try:
             event_id = int(event_id)
-            base_tickets = base_tickets.filter(ticket_type__event__id=event_id)
+            base_tickets = TicketRepository.get_tickets_by_user_and_event(request.user.id, event_id)
         except (ValueError, TypeError):
             pass  # Si el event_id no es un número válido, ignorar el filtro
     
     # Filtrar por estado si se especifica
     status = request.GET.get('status')
-    if status == 'used':
-        base_tickets = base_tickets.filter(is_used=True)
-    elif status == 'unused':
-        base_tickets = base_tickets.filter(is_used=False)
-    elif status == 'paid':
-        base_tickets = base_tickets.filter(is_paid=True)
-    elif status == 'unpaid':
-        base_tickets = base_tickets.filter(is_paid=False)
+    if status in ['used', 'unused', 'paid', 'unpaid']:
+        base_tickets = TicketRepository.get_tickets_by_status(request.user.id, status)
     
-    # Obtener eventos para el filtro desplegable
+    # Paginación de entradas
+    paginator = Paginator(base_tickets, 9)  # 9 entradas por página
+    page = request.GET.get('page')
+    tickets = paginator.get_page(page)
+    
+    # Obtener eventos para el filtro desplegable usando el repositorio
+    # Eventos en los que el usuario tiene entradas
     events = Event.objects.filter(
         tickettype__ticket__user=request.user
     ).distinct()
     
-    # Obtener el contexto actual
-    now = timezone.now()
+    # Estadísticas rápidas
+    stats = {
+        'total': TicketRepository.get_tickets_by_user(request.user.id).count(),
+        'paid': TicketRepository.get_tickets_by_status(request.user.id, 'paid').count(),
+        'unpaid': TicketRepository.get_tickets_by_status(request.user.id, 'unpaid').count(),
+        'upcoming': Event.objects.filter(
+            tickettype__ticket__user=request.user,
+            event_date__gte=timezone.now()
+        ).distinct().count()
+    }
     
     return render(request, 'eventos/my_tickets.html', {
-        'tickets': base_tickets,
+        'tickets': tickets,
         'events': events,
         'selected_event': event_id,
         'selected_status': status,
-        'now': now  # Pasar la fecha actual al template
+        'stats': stats,
+        'now': timezone.now()  # Pasar la fecha actual al template
     })
 
 
@@ -509,38 +450,44 @@ def my_tickets(request):
 def ticket_qr(request, ticket_id):
     """Vista para generar y mostrar el código QR de una entrada"""
     # Obtener la entrada, verificando que pertenezca al usuario actual o sea staff
-    ticket = None
-    if request.user.is_staff:
-        ticket = get_object_or_404(Ticket, pk=ticket_id)
-    else:
-        ticket = get_object_or_404(Ticket, pk=ticket_id, user=request.user)
+    try:
+        if request.user.is_staff:
+            ticket = TicketRepository.get_ticket_by_id(ticket_id)
+        else:
+            ticket = TicketRepository.get_ticket_by_id(ticket_id)
+            if ticket.user.id != request.user.id:
+                return HttpResponse("No tienes permiso para acceder a este QR", status=403)
+        
+        # Verificar si está pagada (a menos que sea staff)
+        if not ticket.is_paid and not request.user.is_staff:
+            return HttpResponse("Esta entrada no ha sido pagada", status=403)
+        
+        # Configurar el tamaño y calidad del QR
+        qr = qrcode.QRCode(
+            version=4,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,  # Mayor corrección de errores
+            box_size=10,
+            border=4,
+        )
+        
+        # Añadir los datos del ticket
+        qr.add_data(ticket.ticket_code)
+        qr.make(fit=True)
+        
+        # Crear imagen con mayor calidad
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Guardar la imagen en un buffer
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        
+        # Devolver la imagen como respuesta
+        return HttpResponse(buffer, content_type="image/png")
     
-    # Verificar si está pagada (a menos que sea staff)
-    if not ticket.is_paid and not request.user.is_staff:
-        return HttpResponse("Esta entrada no ha sido pagada", status=403)
-    
-    # Configurar el tamaño y calidad del QR
-    qr = qrcode.QRCode(
-        version=4,
-        error_correction=qrcode.constants.ERROR_CORRECT_H,  # Mayor corrección de errores
-        box_size=10,
-        border=4,
-    )
-    
-    # Añadir los datos del ticket
-    qr.add_data(ticket.ticket_code)
-    qr.make(fit=True)
-    
-    # Crear imagen con mayor calidad
-    img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Guardar la imagen en un buffer
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    buffer.seek(0)
-    
-    # Devolver la imagen como respuesta
-    return HttpResponse(buffer, content_type="image/png")
+    except Exception as e:
+        logger.error(f"Error al generar QR: {str(e)}")
+        return HttpResponse("Error al generar el código QR", status=500)
 
 
 @staff_member_required
@@ -565,79 +512,66 @@ def verify_ticket(request):
                 'valid': False,
                 'message': 'Código de entrada no proporcionado.'
             })
+        
+        # Usar el servicio para verificar la entrada
+        result = TicketService.verify_ticket(ticket_code, entry_time)
+        
+        # Si es una solicitud AJAX, devolver JSON
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            if result['valid']:
+                result['redirect_url'] = reverse('eventos:access_permitted', args=[result['ticket'].id])
+            else:
+                result['redirect_url'] = reverse('eventos:access_denied') + f"?message={result['message']}"
+                if result['ticket']:
+                    result['redirect_url'] += f"&ticket_id={result['ticket'].id}"
             
-        try:
-            # Buscar la entrada por su código
-            ticket = Ticket.objects.select_related(
-                'ticket_type', 'ticket_type__event', 'user'
-            ).get(ticket_code=ticket_code)
-            
-            # Verificar si ya fue utilizada
-            if ticket.is_used:
-                return JsonResponse({
-                    'valid': False,
-                    'message': 'Esta entrada ya ha sido utilizada.'
-                })
-            
-            # Verificar si ha expirado
-            if ticket.is_expired():
-                return JsonResponse({
-                    'valid': False,
-                    'message': 'Esta entrada ha expirado.'
-                })
-            
-            # Verificar si está pagada
-            if not ticket.is_paid:
-                return JsonResponse({
-                    'valid': False,
-                    'message': 'Esta entrada no ha sido pagada.'
-                })
-            
-            # Quitamos estas verificaciones para pruebas
-            # No verificamos si el evento comenzó o finalizó
-            # De esta forma se puede escanear en cualquier momento
-            
-            # Si todo está correcto, marcar como utilizada
-            ticket.is_used = True
-            ticket.entry_time = entry_time
-            
-            # Incrementar contador de escaneos
-            ticket.scan_count = ticket.scan_count + 1
-            
-            ticket.save(update_fields=['is_used', 'entry_time', 'scan_count'])
-            
-            # Devolver información de la entrada verificada
-            return JsonResponse({
-                'valid': True,
-                'ticket': {
-                    'id': ticket.id,
-                    'event': ticket.ticket_type.event.name,
-                    'ticket_type': ticket.ticket_type.name,
-                    'user': f"{ticket.user.first_name} {ticket.user.last_name}" if ticket.user.first_name else ticket.user.username,
-                    'purchase_date': ticket.purchase_date.strftime('%d/%m/%Y %H:%M'),
-                    'seat_number': ticket.seat_number or 'N/A',
-                    'section': ticket.section or 'N/A',
-                    'entry_time': entry_time.strftime('%d/%m/%Y %H:%M') if entry_time else 'N/A',
-                    'scan_count': ticket.scan_count
-                },
-                'message': 'Entrada verificada con éxito.'
-            })
-        except Ticket.DoesNotExist:
-            return JsonResponse({
-                'valid': False,
-                'message': 'Código de entrada inválido o no encontrado.'
-            })
-        except Exception as e:
-            logger.error(f"Error al verificar entrada: {str(e)}")
-            return JsonResponse({
-                'valid': False,
-                'message': f'Error al verificar la entrada: {str(e)}'
-            })
+            return JsonResponse(result)
+        
+        # Si no es AJAX, redirigir a la página correspondiente
+        if result['valid']:
+            return redirect('eventos:access_permitted', ticket_id=result['ticket'].id)
+        else:
+            url = reverse('eventos:access_denied') + f"?message={result['message']}"
+            if result['ticket']:
+                url += f"&ticket_id={result['ticket'].id}"
+            return redirect(url)
     
     # Si es GET, mostrar la página de verificación
     return render(request, 'eventos/verify_ticket.html', {
         'now': timezone.now()
     })
+
+
+@staff_member_required
+def access_permitted(request, ticket_id):
+    """Vista para mostrar que el acceso está permitido"""
+    # Usar el repositorio para obtener la entrada
+    ticket = TicketRepository.get_ticket_by_id(ticket_id)
+    
+    return render(request, 'eventos/access_permitted.html', {
+        'ticket': ticket
+    })
+
+
+@staff_member_required
+def access_denied(request):
+    """Vista para mostrar que el acceso está denegado"""
+    message = request.GET.get('message', 'Acceso denegado')
+    ticket_id = request.GET.get('ticket_id')
+    
+    context = {
+        'message': message,
+        'ticket': None
+    }
+    
+    if ticket_id:
+        try:
+            ticket = TicketRepository.get_ticket_by_id(int(ticket_id))
+            context['ticket'] = ticket
+        except (ValueError, Ticket.DoesNotExist):
+            pass
+    
+    return render(request, 'eventos/access_denied.html', context)
 
 # -------------------------------------------------------------
 # Vistas de autenticación y perfil de usuario
@@ -648,20 +582,22 @@ def register(request):
     # Redirigir si ya está autenticado
     if request.user.is_authenticated:
         messages.info(request, 'Ya tienes una cuenta activa.')
-        return redirect('/')  # Usar URL absoluta en lugar de nombre de URL
+        return redirect('/')
         
     if request.method == 'POST':
         user_form = UserRegistrationForm(request.POST)
         profile_form = UserProfileForm(request.POST)
         
         if user_form.is_valid() and profile_form.is_valid():
-            # Crear usuario
-            user = user_form.save()
-            
-            # Crear perfil asociado
-            profile = profile_form.save(commit=False)
-            profile.user = user
-            profile.save()
+            # Usar transacción para asegurar que ambos se crean o ninguno
+            with transaction.atomic():
+                # Crear usuario
+                user = user_form.save()
+                
+                # Crear perfil asociado
+                profile = profile_form.save(commit=False)
+                profile.user = user
+                UserProfileRepository.save_profile(profile)
             
             messages.success(request, 'Registro completado con éxito. Ahora puedes iniciar sesión.')
             return redirect('login')
@@ -683,26 +619,25 @@ def profile(request):
         user_form = UserRegistrationForm(request.POST, instance=request.user)
         
         # Intentar obtener el perfil o crear uno nuevo si no existe
-        try:
-            profile = request.user.profile
-        except UserProfile.DoesNotExist:
+        profile = UserProfileRepository.get_profile_by_user(request.user.id)
+        if not profile:
             profile = UserProfile(user=request.user)
             
         # Formulario para datos de perfil
         profile_form = UserProfileForm(request.POST, instance=profile)
         
         if user_form.is_valid() and profile_form.is_valid():
-            user_form.save()
-            profile_form.save()
+            with transaction.atomic():
+                user_form.save()
+                UserProfileRepository.save_profile(profile_form.save(commit=False))
             messages.success(request, 'Perfil actualizado con éxito.')
             return redirect('eventos:profile')
     else:
         # Preparar formularios con datos actuales
         user_form = UserRegistrationForm(instance=request.user)
         
-        try:
-            profile = request.user.profile
-        except UserProfile.DoesNotExist:
+        profile = UserProfileRepository.get_profile_by_user(request.user.id)
+        if not profile:
             profile = UserProfile(user=request.user)
             
         profile_form = UserProfileForm(instance=profile)
@@ -715,18 +650,21 @@ def profile(request):
     
     # Añadir estadísticas de tickets solo para usuarios normales, no para administradores
     if not request.user.is_staff:
-        tickets = Ticket.objects.filter(user=request.user)
-        upcoming_tickets = tickets.filter(ticket_type__event__event_date__gte=timezone.now())
-        used_tickets = tickets.filter(is_used=True)
-        paid_tickets = tickets.filter(is_paid=True)
-        unpaid_tickets = tickets.filter(is_paid=False)
+        ticket_count = TicketRepository.get_tickets_by_user(request.user.id).count()
+        upcoming_tickets = TicketRepository.get_tickets_by_user_and_event(
+            request.user.id, 
+            EventRepository.get_upcoming_events().values_list('id', flat=True)
+        ).count()
+        used_tickets = TicketRepository.get_tickets_by_status(request.user.id, 'used').count()
+        paid_tickets = TicketRepository.get_tickets_by_status(request.user.id, 'paid').count()
+        unpaid_tickets = TicketRepository.get_tickets_by_status(request.user.id, 'unpaid').count()
         
         context.update({
-            'ticket_count': tickets.count(),
-            'upcoming_tickets': upcoming_tickets.count(),
-            'used_tickets': used_tickets.count(),
-            'paid_tickets': paid_tickets.count(),
-            'unpaid_tickets': unpaid_tickets.count()
+            'ticket_count': ticket_count,
+            'upcoming_tickets': upcoming_tickets,
+            'used_tickets': used_tickets,
+            'paid_tickets': paid_tickets,
+            'unpaid_tickets': unpaid_tickets
         })
     
     return render(request, 'eventos/profile.html', context)
@@ -739,39 +677,10 @@ def profile(request):
 def dashboard(request):
     """Vista de panel de control con estadísticas (solo staff)"""
     try:
-        # Estadísticas generales
-        total_events = Event.objects.count()
-        upcoming_events = Event.objects.filter(event_date__gte=timezone.now()).count()
-        total_tickets = Ticket.objects.count()
-        used_tickets = Ticket.objects.filter(is_used=True).count()
-        paid_tickets = Ticket.objects.filter(is_paid=True).count()
-        total_users = User.objects.count()
-        total_revenue = Payment.objects.filter(status='completed').aggregate(Sum('amount'))['amount__sum'] or 0
-        
-        # Eventos más populares (con más entradas vendidas)
-        popular_events = Event.objects.annotate(
-            ticket_count=Count('tickettype__ticket', filter=Q(tickettype__ticket__is_paid=True))
-        ).order_by('-ticket_count')[:5]
-        
-        # Ventas por evento (ingresos)
-        sales_by_event = Event.objects.annotate(
-            ticket_count=Count('tickettype__ticket', filter=Q(tickettype__ticket__is_paid=True)),
-            revenue=Sum('tickettype__ticket__ticket_type__price', filter=Q(tickettype__ticket__is_paid=True))
-        ).order_by('-revenue')[:10]
-        
-        return render(request, 'eventos/dashboard.html', {
-            'total_events': total_events,
-            'upcoming_events': upcoming_events,
-            'total_tickets': total_tickets,
-            'used_tickets': used_tickets,
-            'paid_tickets': paid_tickets,
-            'total_users': total_users,
-            'total_revenue': total_revenue,
-            'popular_events': popular_events,
-            'sales_by_event': sales_by_event
-        })
+        # Usar el servicio para obtener las estadísticas del dashboard
+        stats = EventService.get_dashboard_stats()
+        return render(request, 'eventos/dashboard.html', stats)
     except Exception as e:
         logger.error(f"Error en dashboard: {str(e)}")
         messages.error(request, f"Error al cargar el panel de control: {str(e)}")
-        return redirect('/')  # Usar URL absoluta
-            
+        return redirect('/')

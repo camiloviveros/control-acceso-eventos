@@ -57,10 +57,10 @@
                         <h5 class="alert-heading">Instrucciones</h5>
                         <ol class="mb-0">
                             <li>Escanea el código QR de la entrada o ingresa el código manualmente.</li>
-                            <li>Verifica que el evento, el tipo de entrada y el usuario sean correctos.</li>
-                            <li>Comprueba el asiento y sección asignados.</li>
-                            <li>Establece la hora de entrada (por defecto es la hora actual).</li>
-                            <li>Si todo es correcto, el sistema registrará automáticamente la entrada.</li>
+                            <li>El sistema verificará automáticamente si la entrada es válida.</li>
+                            <li>Se te redirigirá a una página indicando si el acceso está permitido o denegado.</li>
+                            <li>En caso de acceso permitido, se registrará automáticamente la entrada del asistente.</li>
+                            <li>En caso de acceso denegado, se mostrará el motivo específico del rechazo.</li>
                         </ol>
                     </div>
                 </div>
@@ -155,8 +155,8 @@
                             // QR encontrado, procesar
                             processQRCode(code.data);
                             
-                            // Opcional: detener el escáner después de encontrar un código
-                            // stopScanner();
+                            // Detener el escáner después de encontrar un código
+                            stopScanner();
                         }
                     }
                 }
@@ -205,6 +205,9 @@
                     return;
                 }
                 
+                // Mostrar indicador de carga
+                scanResult.innerHTML = '<div class="text-center p-3"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Verificando...</span></div><p class="mt-2">Verificando entrada...</p></div>';
+                
                 // Enviar solicitud AJAX para verificar el ticket
                 const formData = new FormData(verifyForm);
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
@@ -213,42 +216,87 @@
                     method: 'POST',
                     body: formData,
                     headers: {
-                        'X-CSRFToken': csrfToken
+                        'X-CSRFToken': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.valid) {
-                        document.getElementById('scan-result').innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                        scanResult.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
                         
                         // Mostrar detalles del ticket
-                        document.getElementById('ticket-details').innerHTML = `
+                        ticketDetailsContainer.innerHTML = `
                             <div class="card border-success mb-4">
                                 <div class="card-header bg-success text-white">
                                     <h5 class="m-0">Detalles de la Entrada</h5>
                                 </div>
                                 <div class="card-body">
-                                    <p><strong>Evento:</strong> ${data.ticket.event}</p>
-                                    <p><strong>Tipo de Entrada:</strong> ${data.ticket.ticket_type}</p>
-                                    <p><strong>Usuario:</strong> ${data.ticket.user}</p>
-                                    <p><strong>Fecha de Compra:</strong> ${data.ticket.purchase_date}</p>
-                                    <p><strong>Asiento:</strong> ${data.ticket.seat_number}</p>
-                                    <p><strong>Sección:</strong> ${data.ticket.section}</p>
-                                    <p><strong>Hora de Entrada:</strong> ${data.ticket.entry_time}</p>
+                                    <p><strong>Evento:</strong> ${data.ticket.ticket_type.event.name}</p>
+                                    <p><strong>Tipo de Entrada:</strong> ${data.ticket.ticket_type.name}</p>
+                                    <p><strong>Usuario:</strong> ${data.ticket.user.get_full_name || data.ticket.user.username}</p>
+                                    <p><strong>Hora de Entrada:</strong> ${new Date().toLocaleString()}</p>
                                     <p class="mb-0"><strong>Estado:</strong> <span class="badge bg-success">Verificado</span></p>
                                 </div>
                                 <div class="card-footer">
-                                    <button class="btn btn-primary w-100" onclick="window.location.reload();">Verificar Otra Entrada</button>
+                                    <div class="d-grid gap-2">
+                                        <a href="${data.redirect_url}" class="btn btn-primary">Continuar</a>
+                                        <button class="btn btn-outline-secondary" onclick="window.location.reload();">Escanear Otra Entrada</button>
+                                    </div>
                                 </div>
                             </div>
                         `;
+                        
+                        // Redirigir automáticamente después de 2 segundos
+                        setTimeout(function() {
+                            window.location.href = data.redirect_url;
+                        }, 2000);
+                        
                     } else {
-                        document.getElementById('scan-result').innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
-                        document.getElementById('ticket-details').innerHTML = '';
+                        scanResult.innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+                        
+                        // Si hay información del ticket, mostrarla
+                        if (data.ticket) {
+                            ticketDetailsContainer.innerHTML = `
+                                <div class="card border-danger mb-4">
+                                    <div class="card-header bg-danger text-white">
+                                        <h5 class="m-0">Detalles de la Entrada</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p><strong>Evento:</strong> ${data.ticket.ticket_type.event.name}</p>
+                                        <p><strong>Tipo de Entrada:</strong> ${data.ticket.ticket_type.name}</p>
+                                        <p><strong>Usuario:</strong> ${data.ticket.user.get_full_name || data.ticket.user.username}</p>
+                                        <p class="mb-0"><strong>Estado:</strong> <span class="badge bg-danger">No válida</span></p>
+                                    </div>
+                                    <div class="card-footer">
+                                        <div class="d-grid gap-2">
+                                            <a href="${data.redirect_url}" class="btn btn-primary">Ver Detalles</a>
+                                            <button class="btn btn-outline-secondary" onclick="window.location.reload();">Escanear Otra Entrada</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            ticketDetailsContainer.innerHTML = `
+                                <div class="card border-danger mb-4">
+                                    <div class="card-body">
+                                        <p class="text-danger mb-0">No se encontró información para esta entrada.</p>
+                                    </div>
+                                    <div class="card-footer">
+                                        <button class="btn btn-outline-secondary w-100" onclick="window.location.reload();">Escanear Otra Entrada</button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        // Redirigir automáticamente después de 2 segundos
+                        setTimeout(function() {
+                            window.location.href = data.redirect_url;
+                        }, 2000);
                     }
                 })
                 .catch(error => {
-                    document.getElementById('scan-result').innerHTML = '<div class="alert alert-danger">Error al verificar la entrada. Por favor, inténtalo de nuevo.</div>';
+                    scanResult.innerHTML = '<div class="alert alert-danger">Error al verificar la entrada. Por favor, inténtalo de nuevo.</div>';
                     console.error('Error:', error);
                 });
             });

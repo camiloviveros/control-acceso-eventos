@@ -1,0 +1,75 @@
+{% extends 'eventos/base.html' %}
+
+{% block title %}Acceso Permitido - CamEventos{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card text-center">
+                <div class="card-body p-5">
+                    <div class="access-result success mb-4">
+                        <div class="icon-circle">
+                            <i class="fas fa-check fa-5x"></i>
+                        </div>
+                    </div>
+                    
+                    <h1 class="display-4 mb-4 text-success">¡Acceso Permitido!</h1>
+                    
+                    <div class="ticket-info bg-light p-4 rounded mb-4">
+                        <h5 class="mb-3">Detalles de la Entrada</h5>
+                        <div class="row">
+                            <div class="col-md-6 text-start">
+                                <p><strong>Evento:</strong> {{ ticket.ticket_type.event.name }}</p>
+                                <p><strong>Tipo de Entrada:</strong> {{ ticket.ticket_type.name }}</p>
+                                <p><strong>Usuario:</strong> {{ ticket.user.get_full_name|default:ticket.user.username }}</p>
+                            </div>
+                            <div class="col-md-6 text-start">
+                                <p><strong>Asiento:</strong> {{ ticket.seat_number|default:"No asignado" }}</p>
+                                <p><strong>Sección:</strong> {{ ticket.section|default:"No asignada" }}</p>
+                                <p><strong>Hora de Entrada:</strong> {{ ticket.entry_time|date:"d/m/Y H:i" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-3">
+                        <a href="{% url 'eventos:verify_ticket' %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-qrcode me-2"></i>Escanear Otra Entrada
+                        </a>
+                        <a href="{% url 'eventos:index' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-2"></i>Volver al Inicio
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .access-result {
+        margin-bottom: 2rem;
+    }
+    
+    .icon-circle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        color: #fff;
+    }
+    
+    .access-result.success .icon-circle {
+        background-color: #198754;
+        box-shadow: 0 0 30px rgba(25, 135, 84, 0.3);
+    }
+    
+    .ticket-info {
+        border-left: 5px solid #198754;
+    }
+</style>
+{% endblock %}

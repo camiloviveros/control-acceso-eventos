@@ -1,3 +1,5 @@
+# eventos/urls.py
+
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
@@ -25,13 +27,14 @@ urlpatterns = [
     path('entrada/<int:ticket_id>/asiento/', views.seat_selection, name='seat_selection'),
     path('entrada/<int:ticket_id>/pago/', views.payment_process, name='payment_process'),
     path('ticket/<int:ticket_id>/qr/', views.ticket_qr, name='ticket_qr'),
+    
+    # Verificación de entradas y acceso
     path('verificar-entrada/', views.verify_ticket, name='verify_ticket'),
+    path('acceso-permitido/<int:ticket_id>/', views.access_permitted, name='access_permitted'),
+    path('acceso-denegado/', views.access_denied, name='access_denied'),
     
     # Autenticación y perfil de usuario
     path('registro/', views.register, name='register'),
-    # Eliminar estas rutas ya que ahora están en evento_manager/urls.py
-    # path('iniciar-sesion/', auth_views.LoginView.as_view(template_name='eventos/login.html'), name='login'),
-    # path('cerrar-sesion/', auth_views.LogoutView.as_view(next_page='/'), name='logout'),
     path('perfil/', views.profile, name='profile'),
     
     # Cambio de contraseña
@@ -41,12 +44,6 @@ urlpatterns = [
              success_url='/perfil/'
          ),
          name='password_change'),
-    
-    # Eliminar estas rutas de restablecimiento de contraseña ya que están en evento_manager/urls.py
-    # path('reiniciar-password/', ...),
-    # path('reiniciar-password/enviado/', ...),
-    # path('reiniciar-password/<uidb64>/<token>/', ...),
-    # path('reiniciar-password/completado/', ...),
     
     # Panel de administración
     path('panel-control/', views.dashboard, name='dashboard'),
