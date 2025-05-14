@@ -1,5 +1,3 @@
-# eventos/views.py
-
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
@@ -12,6 +10,8 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.urls import reverse
 from datetime import datetime
+from django.contrib.auth.models import User
+from django.db.models import Count, Sum
 
 import qrcode
 from io import BytesIO
@@ -43,17 +43,43 @@ class IndexView(ListView):
         return EventRepository.get_upcoming_events(limit=6)
     
     def get_context_data(self, **kwargs):
-        """Añadir estadísticas adicionales al contexto"""
+        """Añadir estadísticas adicionales al contexto basado en el tipo de usuario"""
         context = super().get_context_data(**kwargs)
-        # Contar eventos próximos y total
-        context['upcoming_count'] = EventRepository.get_upcoming_events().count()
-        context['total_events'] = EventRepository.get_all_events().count()
         
-        # Añadir contador de entradas si el usuario está autenticado
+        # Agregar estadísticas al contexto dependiendo del tipo de usuario
         if self.request.user.is_authenticated:
-            context['user_tickets_count'] = TicketRepository.get_tickets_by_user(
-                self.request.user.id
-            ).count()
+            # Contar eventos próximos y total para todos los usuarios autenticados
+            context['upcoming_count'] = EventRepository.get_upcoming_events().count()
+            context['total_events'] = EventRepository.get_all_events().count()
+            
+            if self.request.user.is_staff:
+                # Estadísticas adicionales para administradores
+                context['total_users'] = User.objects.count()
+                context['tickets_count'] = Ticket.objects.count()
+                
+                # Obtener eventos con más ventas
+                context['popular_events'] = Event.objects.annotate(
+                    tickets_sold=Count('tickettype__ticket')
+                ).order_by('-tickets_sold')[:5]
+                
+                # Ventas totales
+                context['total_sales'] = Ticket.objects.filter(is_paid=True).aggregate(
+                    total=Sum('ticket_type__price')
+                )['total'] or 0
+            else:
+                # Estadísticas para usuarios normales
+                context['user_tickets_count'] = TicketRepository.get_tickets_by_user(
+                    self.request.user.id
+                ).count()
+                
+                # Entradas pendientes (no pagadas)
+                context['pending_tickets'] = TicketRepository.get_tickets_by_status(
+                    self.request.user.id, 'unpaid'
+                ).count()
+                
+                # Eventos disponibles
+                context['events_count'] = EventRepository.get_upcoming_events().count()
+        
         return context
 
 

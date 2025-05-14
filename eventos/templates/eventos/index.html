@@ -2,64 +2,260 @@
 
 {% block title %}CamEventos - Tu plataforma de eventos{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Estilos específicos para la página de inicio */
+    .hero-custom {
+        position: relative;
+        height: 80vh;
+        min-height: 500px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    
+    /* Fondo para usuarios no autenticados */
+    .hero-guest {
+        background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
+                          url('/static/img/hero-background.jpg');
+    }
+    
+    /* Fondo para usuarios normales */
+    .hero-user {
+        background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
+                          url('/static/img/user-background.jpg');
+    }
+    
+    /* Fondo para administradores */
+    .hero-admin {
+        background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
+                          url('/static/img/admin-background.jpg');
+    }
+    
+    .hero-content {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        text-align: center;
+        color: #fff;
+        z-index: 1;
+    }
+    
+    .hero-title {
+        font-size: 3.5rem;
+        margin-bottom: 1.5rem;
+        font-weight: 700;
+    }
+    
+    .hero-description {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        line-height: 1.5;
+    }
+    
+    .typewriter {
+        overflow: hidden;
+        border-right: .15em solid #fff;
+        white-space: nowrap;
+        margin: 0 auto;
+        letter-spacing: .15em;
+        animation: typing 3.5s steps(40, end), blink-caret .75s step-end infinite;
+    }
+    
+    @keyframes typing {
+        from { width: 0 }
+        to { width: 100% }
+    }
+    
+    @keyframes blink-caret {
+        from, to { border-color: transparent }
+        50% { border-color: #fff; }
+    }
+    
+    .fade-in {
+        opacity: 0;
+        animation: fadeIn 1s ease forwards;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .bounce {
+        animation: bounce 2s infinite;
+    }
+    
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-30px); }
+        60% { transform: translateY(-15px); }
+    }
+    
+    .card-hover {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .card-hover:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<!-- Hero Section -->
-<section class="hero-section">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <h1 class="display-4 fw-bold mb-4">Descubre, <span class="text-primary">Vive</span> y <span class="text-primary">Disfruta</span> los mejores eventos</h1>
-                <p class="lead mb-4">Encuentra, compra entradas y gestiona tus eventos favoritos en un solo lugar.</p>
-                <div class="d-flex gap-3">
-                    <a href="{% url 'eventos:event_list' %}" class="btn btn-primary btn-lg">Ver eventos</a>
-                    {% if not user.is_authenticated %}
-                    <a href="{% url 'eventos:register' %}" class="btn btn-outline-primary btn-lg">Registrarse</a>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="col-md-6 d-none d-md-block">
-                <img src="/static/img/hero-image.svg" alt="Eventos" class="img-fluid">
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- Stats Section -->
-<section class="py-5 bg-light">
-    <div class="container">
-        <div class="row text-center">
-            <div class="col-md-4 mb-4 mb-md-0">
-                <div class="stat-item">
-                    <div class="stat-icon bg-primary text-white">
-                        <i class="fas fa-calendar-alt"></i>
-                    </div>
-                    <h3 class="stat-number">{{ upcoming_count }}</h3>
-                    <p class="stat-text">Próximos eventos</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4 mb-md-0">
-                <div class="stat-item">
-                    <div class="stat-icon bg-success text-white">
-                        <i class="fas fa-ticket-alt"></i>
-                    </div>
-                    <h3 class="stat-number">{{ total_events }}</h3>
-                    <p class="stat-text">Total de eventos</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stat-item">
-                    <div class="stat-icon bg-info text-white">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h3 class="stat-number">{% if user.is_authenticated and not user.is_staff %}{{ user_tickets_count }}{% else %}0{% endif %}</h3>
-                    <p class="stat-text">{% if user.is_authenticated and not user.is_staff %}Tus entradas{% else %}Entradas{% endif %}</p>
-                </div>
+<!-- Hero Section - Adaptado según el tipo de usuario -->
+{% if user.is_authenticated %}
+    {% if user.is_staff %}
+    <!-- VISTA PARA ADMINISTRADORES -->
+    <section class="hero-custom hero-admin">
+        <div class="hero-content">
+            <h1 class="hero-title fade-in" id="admin-title">Panel Administrativo de CamEventos</h1>
+            <p class="hero-description typewriter" id="admin-description">
+                Gestiona eventos, tickets y usuarios con herramientas avanzadas de análisis
+            </p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{% url 'eventos:dashboard' %}" class="btn btn-light btn-lg">
+                    <i class="fas fa-chart-line me-2"></i>Panel de Control
+                </a>
+                <a href="{% url 'eventos:event_create' %}" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-plus me-2"></i>Crear Evento
+                </a>
             </div>
         </div>
-    </div>
-</section>
+    </section>
+    
+    <!-- Admin Stats Section -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-md-4 mb-4 mb-md-0">
+                    <div class="card card-hover p-4">
+                        <div class="card-body">
+                            <i class="fas fa-calendar-alt fa-3x text-primary mb-3"></i>
+                            <h3 class="stat-number">{{ total_events }}</h3>
+                            <p class="text-muted">Total de eventos</p>
+                            <a href="{% url 'eventos:event_list' %}" class="btn btn-sm btn-primary mt-2">
+                                Ver eventos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4 mb-md-0">
+                    <div class="card card-hover p-4">
+                        <div class="card-body">
+                            <i class="fas fa-ticket-alt fa-3x text-success mb-3"></i>
+                            <h3 class="stat-number">{{ upcoming_count }}</h3>
+                            <p class="text-muted">Próximos eventos</p>
+                            <a href="{% url 'eventos:event_list' %}?date=upcoming" class="btn btn-sm btn-success mt-2">
+                                Ver próximos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card card-hover p-4">
+                        <div class="card-body">
+                            <i class="fas fa-users fa-3x text-info mb-3"></i>
+                            <h3 class="stat-number">{{ total_users|default:"0" }}</h3>
+                            <p class="text-muted">Usuarios registrados</p>
+                            <a href="/admin/auth/user/" class="btn btn-sm btn-info mt-2">
+                                Gestionar usuarios
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    {% else %}
+    <!-- VISTA PARA USUARIOS NORMALES -->
+    <section class="hero-custom hero-user">
+        <div class="hero-content">
+            <h1 class="hero-title fade-in">Bienvenido, {{ user.first_name|default:user.username }}</h1>
+            <p class="hero-description typewriter" id="user-description">
+                Tus experiencias te esperan, descubre eventos únicos
+            </p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{% url 'eventos:my_tickets' %}" class="btn btn-light btn-lg">
+                    <i class="fas fa-ticket-alt me-2"></i>Mis Entradas
+                </a>
+                <a href="{% url 'eventos:event_list' %}" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-search me-2"></i>Explorar Eventos
+                </a>
+            </div>
+        </div>
+    </section>
+    
+    <!-- User Stats Section -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-md-4 mb-4 mb-md-0">
+                    <div class="card card-hover p-4">
+                        <div class="card-body">
+                            <i class="fas fa-ticket-alt fa-3x text-primary mb-3"></i>
+                            <h3 class="stat-number">{{ user_tickets_count }}</h3>
+                            <p class="text-muted">Tus entradas</p>
+                            <a href="{% url 'eventos:my_tickets' %}" class="btn btn-sm btn-primary mt-2">
+                                Ver entradas
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4 mb-md-0">
+                    <div class="card card-hover p-4">
+                        <div class="card-body">
+                            <i class="fas fa-calendar-check fa-3x text-success mb-3"></i>
+                            <h3 class="stat-number">{{ upcoming_count }}</h3>
+                            <p class="text-muted">Próximos eventos</p>
+                            <a href="{% url 'eventos:event_list' %}?date=upcoming" class="btn btn-sm btn-success mt-2">
+                                Ver eventos
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card card-hover p-4">
+                        <div class="card-body">
+                            <i class="fas fa-star fa-3x text-warning mb-3 bounce"></i>
+                            <h3 class="stat-number">{{ events_count|default:"0" }}</h3>
+                            <p class="text-muted">Eventos disponibles</p>
+                            <a href="{% url 'eventos:event_list' %}" class="btn btn-sm btn-warning mt-2">
+                                Explorar
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endif %}
+{% else %}
+    <!-- VISTA PARA VISITANTES SIN AUTENTICACIÓN -->
+    <section class="hero-custom hero-guest">
+        <div class="hero-content">
+            <h1 class="hero-title fade-in">Descubre, <span class="text-primary">Vive</span> y <span class="text-primary">Disfruta</span></h1>
+            <p class="hero-description typewriter" id="guest-description">
+                Encuentra los mejores eventos en un solo lugar
+            </p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{% url 'eventos:event_list' %}" class="btn btn-light btn-lg">
+                    <i class="fas fa-search me-2"></i>Ver eventos
+                </a>
+                <a href="{% url 'eventos:register' %}" class="btn btn-outline-light btn-lg">
+                    <i class="fas fa-user-plus me-2"></i>Registrarse
+                </a>
+            </div>
+        </div>
+    </section>
+{% endif %}
 
-<!-- Upcoming Events Section -->
+<!-- Upcoming Events Section - Común para todos los usuarios -->
 <section class="py-5">
     <div class="container">
         <div class="section-title text-center mb-5">
@@ -71,7 +267,7 @@
             {% if events %}
                 {% for event in events %}
                 <div class="col-md-4 mb-4">
-                    <div class="card event-card h-100">
+                    <div class="card event-card h-100 card-hover">
                         <div class="event-card-img">
                             {% if event.image %}
                             <img src="{{ event.image.url }}" class="card-img-top" alt="{{ event.name }}">
@@ -111,17 +307,18 @@
     </div>
 </section>
 
-<!-- Features Section -->
+<!-- Features Section - Solo para visitantes sin autenticación -->
+{% if not user.is_authenticated %}
 <section class="py-5 bg-light">
     <div class="container">
         <div class="section-title text-center mb-5">
-            <h2 class="fw-bold">¿Por qué usar EventosYA?</h2>
+            <h2 class="fw-bold">¿Por qué usar CamEventos?</h2>
             <p class="text-muted">Descubre las ventajas de nuestra plataforma</p>
         </div>
         
         <div class="row g-4">
             <div class="col-md-4">
-                <div class="feature-card text-center p-4">
+                <div class="feature-card card-hover text-center p-4">
                     <div class="feature-icon mb-3">
                         <i class="fas fa-search fa-3x text-primary"></i>
                     </div>
@@ -130,7 +327,7 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="feature-card text-center p-4">
+                <div class="feature-card card-hover text-center p-4">
                     <div class="feature-icon mb-3">
                         <i class="fas fa-ticket-alt fa-3x text-primary"></i>
                     </div>
@@ -139,7 +336,7 @@
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="feature-card text-center p-4">
+                <div class="feature-card card-hover text-center p-4">
                     <div class="feature-icon mb-3">
                         <i class="fas fa-calendar-check fa-3x text-primary"></i>
                     </div>
@@ -151,7 +348,7 @@
     </div>
 </section>
 
-<!-- CTA Section -->
+<!-- CTA Section - Solo para visitantes sin autenticación -->
 <section class="py-5 bg-primary text-white">
     <div class="container">
         <div class="row align-items-center">
@@ -160,13 +357,80 @@
                 <p class="lead mb-0">Únete a nuestra plataforma y comienza a disfrutar de los mejores eventos.</p>
             </div>
             <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
-                {% if user.is_authenticated %}
-                <a href="{% url 'eventos:event_list' %}" class="btn btn-light btn-lg">Explorar eventos</a>
-                {% else %}
                 <a href="{% url 'eventos:register' %}" class="btn btn-light btn-lg">Registrarse ahora</a>
-                {% endif %}
             </div>
         </div>
     </div>
 </section>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Efecto de máquina de escribir (Typewriter) con repetición
+    document.addEventListener('DOMContentLoaded', function() {
+        const phrases = {
+            'guest-description': [
+                'Encuentra los mejores eventos en un solo lugar',
+                'Vive experiencias únicas e inolvidables',
+                'Compra entradas de forma segura y rápida',
+                'Descubre eventos exclusivos cerca de ti'
+            ],
+            'user-description': [
+                'Tus experiencias te esperan, descubre eventos únicos',
+                'Explora, reserva y asiste a los mejores eventos',
+                'Entradas digitales en un solo lugar',
+                'Tu agenda de eventos personalizada'
+            ],
+            'admin-description': [
+                'Gestiona eventos, tickets y usuarios con herramientas avanzadas',
+                'Monitorea las ventas y estadísticas en tiempo real',
+                'Controla accesos y verifica entradas fácilmente',
+                'Administra la plataforma de eventos completa'
+            ]
+        };
+        
+        // Para cada elemento con efecto typewriter
+        Object.keys(phrases).forEach(elementId => {
+            const element = document.getElementById(elementId);
+            
+            if (element) {
+                const currentPhrases = phrases[elementId];
+                let phraseIndex = 0;
+                
+                // Función para cambiar el texto con efecto typewriter
+                function typeWriter() {
+                    const currentPhrase = currentPhrases[phraseIndex];
+                    let charIndex = 0;
+                    
+                    // Limpiar el elemento
+                    element.textContent = '';
+                    element.classList.remove('typewriter');
+                    void element.offsetWidth; // Trigger reflow
+                    element.classList.add('typewriter');
+                    
+                    // Función para escribir el texto letra por letra
+                    function type() {
+                        if (charIndex < currentPhrase.length) {
+                            element.textContent += currentPhrase.charAt(charIndex);
+                            charIndex++;
+                            setTimeout(type, 70); // Velocidad de escritura
+                        } else {
+                            // Esperar antes de borrar y escribir la siguiente frase
+                            setTimeout(() => {
+                                phraseIndex = (phraseIndex + 1) % currentPhrases.length;
+                                setTimeout(typeWriter, 500); // Tiempo entre frases
+                            }, 3000); // Tiempo que se muestra la frase completa
+                        }
+                    }
+                    
+                    type(); // Iniciar la escritura
+                }
+                
+                // Iniciar el efecto
+                typeWriter();
+            }
+        });
+    });
+</script>
 {% endblock %}
