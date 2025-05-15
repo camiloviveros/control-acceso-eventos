@@ -3,6 +3,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from . import api_views
 
 app_name = 'eventos'
 
@@ -47,4 +48,7 @@ urlpatterns = [
     
     # Panel de administración
     path('panel-control/', views.dashboard, name='dashboard'),
+    
+    # API para sugerencias de búsqueda
+    path('api/search-suggestions/', api_views.search_suggestions, name='search_suggestions'),
 ]

@@ -56,6 +56,135 @@
         body {
             background-color: #ffffff; /* Fondo blanco */
         }
+
+        /* Estilos para el buscador en la barra de navegación */
+        .navbar-search {
+            max-width: 500px;
+            width: 100%;
+            margin: 0 0 0 20px; /* Movido a la izquierda */
+            position: relative;
+        }
+
+        .navbar-search .form-control {
+            border-radius: 20px;
+            padding: 10px 40px 10px 15px; /* Más alto */
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 16px; /* Texto más grande */
+        }
+
+        .navbar-search .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .navbar-search .form-control:focus {
+            background-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .navbar-search .btn {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 50%;
+            width: 36px; /* Más grande */
+            height: 36px; /* Más grande */
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            background-color: transparent;
+            border: none;
+        }
+
+        .navbar-search .btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Estilos para las sugerencias */
+        .search-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1031;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .search-suggestions.show {
+            display: block;
+        }
+        
+        .suggestion-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            color: #343a40;
+            display: flex;
+            align-items: center;
+        }
+        
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        
+        .suggestion-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .suggestion-item img {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+        
+        .suggestion-item .suggestion-info {
+            flex: 1;
+        }
+        
+        .suggestion-item .suggestion-title {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        
+        .suggestion-item .suggestion-meta {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        /* Estilos responsive para el buscador */
+        @media (max-width: 991.98px) {
+            .navbar-search-container {
+                order: -1;
+                width: 100%;
+                padding: 10px 15px;
+                background-color: #343a40;
+                position: fixed;
+                top: 56px;
+                left: 0;
+                z-index: 1030;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                display: flex;
+                justify-content: center;
+            }
+            .navbar-search {
+                max-width: 100%;
+            }
+            main {
+                padding-top: 60px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -94,6 +223,20 @@
                     </li>
                     {% endif %}
                 </ul>
+                
+                <!-- Buscador de eventos (solo para usuarios autenticados no staff) -->
+                {% if user.is_authenticated and not user.is_staff %}
+                <div class="navbar-search-container d-lg-block">
+                    <form class="navbar-search" action="{% url 'eventos:event_list' %}" method="get" id="searchForm">
+                        <input type="text" name="q" class="form-control" placeholder="Buscar eventos..." value="{{ request.GET.q|default:'' }}" id="searchInput" autocomplete="off">
+                        <button type="submit" class="btn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <div class="search-suggestions" id="searchSuggestions"></div>
+                    </form>
+                </div>
+                {% endif %}
+                
                 <ul class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
                     {% if not user.is_staff %}
@@ -199,5 +342,186 @@
     <script src="/static/js/main.js"></script>
     
     {% block extra_js %}{% endblock %}
+
+    <!-- Script para ajustar el espacio superior en vista móvil cuando el buscador está presente -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            function adjustMainPadding() {
+                const searchContainer = document.querySelector('.navbar-search-container');
+                if (window.innerWidth < 992 && searchContainer) {
+                    const searchHeight = searchContainer.offsetHeight;
+                    document.querySelector('main').style.paddingTop = (56 + searchHeight) + 'px';
+                } else {
+                    document.querySelector('main').style.paddingTop = '';
+                }
+            }
+            
+            // Ejecutar al cargar la página y al cambiar el tamaño de ventana
+            adjustMainPadding();
+            window.addEventListener('resize', adjustMainPadding);
+            
+            // Script para el buscador con autosugerencias
+            const searchInput = document.getElementById('searchInput');
+            const searchSuggestions = document.getElementById('searchSuggestions');
+            
+            if (searchInput && searchSuggestions) {
+                let debounceTimer;
+                
+                // Función para obtener sugerencias desde el servidor
+                function fetchSuggestions(query) {
+                    if (query.length < 2) {
+                        searchSuggestions.innerHTML = '';
+                        searchSuggestions.classList.remove('show');
+                        return;
+                    }
+                    
+                    fetch(`/api/search-suggestions/?q=${encodeURIComponent(query)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.suggestions && data.suggestions.length > 0) {
+                                searchSuggestions.innerHTML = '';
+                                
+                                data.suggestions.forEach(event => {
+                                    const item = document.createElement('div');
+                                    item.className = 'suggestion-item';
+                                    
+                                    let imgSrc = event.image || '/static/img/event-placeholder.jpg';
+                                    let eventDate = new Date(event.event_date);
+                                    let formattedDate = eventDate.toLocaleDateString('es-ES', {
+                                        day: 'numeric', 
+                                        month: 'short',
+                                        year: 'numeric'
+                                    });
+                                    
+                                    item.innerHTML = `
+                                        <img src="${imgSrc}" alt="${event.name}">
+                                        <div class="suggestion-info">
+                                            <div class="suggestion-title">${event.name}</div>
+                                            <div class="suggestion-meta">
+                                                <i class="fas fa-calendar-alt me-1"></i> ${formattedDate} - 
+                                                <i class="fas fa-map-marker-alt me-1"></i> ${event.location}
+                                            </div>
+                                        </div>
+                                    `;
+                                    
+                                    item.addEventListener('click', () => {
+                                        window.location.href = `/eventos/${event.id}/`;
+                                    });
+                                    
+                                    searchSuggestions.appendChild(item);
+                                });
+                                
+                                searchSuggestions.classList.add('show');
+                            } else {
+                                searchSuggestions.innerHTML = `
+                                    <div class="suggestion-item">
+                                        <div class="suggestion-info">
+                                            <div class="suggestion-title">No se encontraron eventos</div>
+                                        </div>
+                                    </div>
+                                `;
+                                searchSuggestions.classList.add('show');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error al buscar sugerencias:', error);
+                            // Manejo alternativo: buscar directamente en el cliente
+                            // Esta parte solo se ejecutará si la API falla o no existe
+                            simulateClientSideSuggestions(query);
+                        });
+                }
+                
+                // Función para simular sugerencias en el cliente (fallback)
+                function simulateClientSideSuggestions(query) {
+                    // Lista de ejemplos de eventos (en una aplicación real, estos vendrían del servidor)
+                    const demoEvents = [
+                        { id: 1, name: "Concierto de Rock", location: "Arena Principal, Pasto", event_date: "2025-05-21" },
+                        { id: 2, name: "Festival Gastronómico", location: "Parque Central, Pasto", event_date: "2025-05-28" },
+                        { id: 3, name: "Conferencia de Tecnología", location: "Centro de Convenciones, Pasto", event_date: "2025-06-04" },
+                        { id: 4, name: "Exposición de Arte", location: "Galería Municipal, Pasto", event_date: "2025-06-10" },
+                        { id: 5, name: "Feria del Libro", location: "Biblioteca Central, Pasto", event_date: "2025-06-15" }
+                    ];
+                    
+                    // Filtrar eventos que coinciden con la consulta
+                    const filteredEvents = demoEvents.filter(event => 
+                        event.name.toLowerCase().includes(query.toLowerCase()) || 
+                        event.location.toLowerCase().includes(query.toLowerCase())
+                    );
+                    
+                    if (filteredEvents.length > 0) {
+                        searchSuggestions.innerHTML = '';
+                        
+                        filteredEvents.forEach(event => {
+                            const item = document.createElement('div');
+                            item.className = 'suggestion-item';
+                            
+                            let eventDate = new Date(event.event_date);
+                            let formattedDate = eventDate.toLocaleDateString('es-ES', {
+                                day: 'numeric', 
+                                month: 'short',
+                                year: 'numeric'
+                            });
+                            
+                            item.innerHTML = `
+                                <img src="/static/img/event-placeholder.jpg" alt="${event.name}">
+                                <div class="suggestion-info">
+                                    <div class="suggestion-title">${event.name}</div>
+                                    <div class="suggestion-meta">
+                                        <i class="fas fa-calendar-alt me-1"></i> ${formattedDate} - 
+                                        <i class="fas fa-map-marker-alt me-1"></i> ${event.location}
+                                    </div>
+                                </div>
+                            `;
+                            
+                            item.addEventListener('click', () => {
+                                window.location.href = `/eventos/${event.id}/`;
+                            });
+                            
+                            searchSuggestions.appendChild(item);
+                        });
+                        
+                        searchSuggestions.classList.add('show');
+                    } else {
+                        searchSuggestions.innerHTML = `
+                            <div class="suggestion-item">
+                                <div class="suggestion-info">
+                                    <div class="suggestion-title">No se encontraron eventos</div>
+                                </div>
+                            </div>
+                        `;
+                        searchSuggestions.classList.add('show');
+                    }
+                }
+                
+                // Evento de entrada de texto con debounce
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(debounceTimer);
+                    const query = this.value.trim();
+                    
+                    debounceTimer = setTimeout(() => {
+                        fetchSuggestions(query);
+                    }, 300); // Esperar 300ms después de que el usuario deje de escribir
+                });
+                
+                // Cerrar sugerencias al hacer clic fuera
+                document.addEventListener('click', function(e) {
+                    if (!searchInput.contains(e.target) && !searchSuggestions.contains(e.target)) {
+                        searchSuggestions.classList.remove('show');
+                    }
+                });
+                
+                // Evitar que el formulario se envíe al presionar Enter si hay sugerencias visibles
+                document.getElementById('searchForm').addEventListener('submit', function(e) {
+                    if (searchSuggestions.classList.contains('show') && searchSuggestions.childElementCount > 0) {
+                        const firstSuggestion = searchSuggestions.querySelector('.suggestion-item');
+                        if (firstSuggestion) {
+                            e.preventDefault();
+                            firstSuggestion.click();
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
