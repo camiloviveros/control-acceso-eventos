@@ -51,4 +51,7 @@ urlpatterns = [
     
     # API para sugerencias de búsqueda
     path('api/search-suggestions/', api_views.search_suggestions, name='search_suggestions'),
+    
+    #estadísticas detalladas
+    path('estadisticas-detalladas/', views.detailed_stats, name='detailed_stats'),
 ]

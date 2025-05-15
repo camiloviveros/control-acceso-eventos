@@ -4,6 +4,15 @@ from django.utils import timezone
 import uuid
 
 class Event(models.Model):
+    CATEGORY_CHOICES = (
+        ('music', 'Música'),
+        ('sports', 'Deportes'),
+        ('culture', 'Cultura'),
+        ('education', 'Educación'),
+        ('business', 'Negocios'),
+        ('other', 'Otro'),
+    )
+    
     name = models.CharField(max_length=255, verbose_name="Nombre del evento")
     description = models.TextField(verbose_name="Descripción")
     event_date = models.DateTimeField(verbose_name="Fecha y hora")
@@ -13,6 +22,7 @@ class Event(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     has_seats = models.BooleanField(default=False, verbose_name="¿Tiene asientos numerados?")
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other', verbose_name="Categoría")
     
     class Meta:
         verbose_name = "Evento"

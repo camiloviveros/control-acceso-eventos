@@ -11,7 +11,7 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Filtrar por evento</label>
                     <select name="event" class="form-select">
                         <option value="">Todos los eventos</option>
@@ -22,7 +22,24 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label class="form-label">Filtrar por categoría</label>
+                    <select name="category" class="form-select">
+                        <option value="">Todas las categorías</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
+                            {% if category == 'music' %}Música
+                            {% elif category == 'sports' %}Deportes
+                            {% elif category == 'culture' %}Cultura
+                            {% elif category == 'education' %}Educación
+                            {% elif category == 'business' %}Negocios
+                            {% else %}Otro
+                            {% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label">Filtrar por estado</label>
                     <select name="status" class="form-select">
                         <option value="">Todos los estados</option>
@@ -32,7 +49,7 @@
                         <option value="unused" {% if selected_status == 'unused' %}selected{% endif %}>No utilizadas</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">&nbsp;</label>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary">
@@ -72,6 +89,44 @@
         </div>
     </div>
     
+    <!-- Estadísticas por categoría -->
+    {% if stats.categories %}
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="m-0">Entradas por Categoría</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for category, data in stats.categories.items %}
+                <div class="col-md-4 col-lg-3 mb-3">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            {% if category == 'music' %}
+                                <i class="fas fa-music fa-2x text-primary"></i>
+                            {% elif category == 'sports' %}
+                                <i class="fas fa-running fa-2x text-success"></i>
+                            {% elif category == 'culture' %}
+                                <i class="fas fa-theater-masks fa-2x text-danger"></i>
+                            {% elif category == 'education' %}
+                                <i class="fas fa-graduation-cap fa-2x text-info"></i>
+                            {% elif category == 'business' %}
+                                <i class="fas fa-briefcase fa-2x text-secondary"></i>
+                            {% else %}
+                                <i class="fas fa-star fa-2x text-warning"></i>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h6 class="mb-0">{{ data.name }}</h6>
+                            <p class="mb-0 text-muted">{{ data.count }} entradas</p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
     <!-- Lista de entradas -->
     {% if tickets %}
     <div class="row">
@@ -80,13 +135,15 @@
             <div class="card ticket-card h-100 {% if ticket.is_used %}bg-light border-secondary{% elif not ticket.is_paid %}border-warning{% else %}border-primary{% endif %}">
                 <div class="card-header {% if ticket.is_used %}bg-secondary{% elif not ticket.is_paid %}bg-warning{% else %}bg-primary{% endif %} text-white d-flex justify-content-between align-items-center">
                     <h5 class="m-0">{{ ticket.ticket_type.event.name|truncatechars:25 }}</h5>
-                    {% if ticket.is_used %}
-                    <span class="badge bg-danger">Utilizada</span>
-                    {% elif not ticket.is_paid %}
-                    <span class="badge bg-warning text-dark">Pendiente</span>
-                    {% else %}
-                    <span class="badge bg-success">Pagada</span>
-                    {% endif %}
+                    <span class="badge bg-light text-dark">
+                        {% if ticket.ticket_type.event.category == 'music' %}Música
+                        {% elif ticket.ticket_type.event.category == 'sports' %}Deportes
+                        {% elif ticket.ticket_type.event.category == 'culture' %}Cultura
+                        {% elif ticket.ticket_type.event.category == 'education' %}Educación
+                        {% elif ticket.ticket_type.event.category == 'business' %}Negocios
+                        {% else %}Otro
+                        {% endif %}
+                    </span>
                 </div>
                 <div class="card-body">
                     <div class="ticket-info mb-3">
@@ -143,12 +200,12 @@
         <ul class="pagination justify-content-center">
             {% if tickets.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="?page=1{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="First">
+                <a class="page-link" href="?page=1{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" aria-label="First">
                     <span aria-hidden="true">&laquo;&laquo;</span>
                 </a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ tickets.previous_page_number }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="Previous">
+                <a class="page-link" href="?page={{ tickets.previous_page_number }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" aria-label="Previous">
                     <span aria-hidden="true">&laquo;</span>
                 </a>
             </li>
@@ -161,19 +218,19 @@
                 </li>
                 {% elif num > tickets.number|add:'-3' and num < tickets.number|add:'3' %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ num }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}">{{ num }}</a>
+                    <a class="page-link" href="?page={{ num }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}">{{ num }}</a>
                 </li>
                 {% endif %}
             {% endfor %}
             
             {% if tickets.has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ tickets.next_page_number }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="Next">
+                <a class="page-link" href="?page={{ tickets.next_page_number }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" aria-label="Next">
                     <span aria-hidden="true">&raquo;</span>
                 </a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ tickets.paginator.num_pages }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}" aria-label="Last">
+                <a class="page-link" href="?page={{ tickets.paginator.num_pages }}{% if selected_event %}&event={{ selected_event }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_category %}&category={{ selected_category }}{% endif %}" aria-label="Last">
                     <span aria-hidden="true">&raquo;&raquo;</span>
                 </a>
             </li>

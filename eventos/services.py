@@ -3,6 +3,7 @@
 from django.utils import timezone
 from django.db import transaction
 from django.contrib.auth.models import User
+from django.db.models import Sum, F
 import uuid
 import logging
 
@@ -50,9 +51,27 @@ class EventService:
     
     @staticmethod
     def delete_event(event):
-        """Eliminar un evento"""
+        """Eliminar un evento y su imagen asociada"""
         try:
-            return EventRepository.delete_event(event)
+            # Guardar referencia a la imagen antes de eliminar el evento
+            if event.image:
+                import os
+                from django.conf import settings
+                image_path = os.path.join(settings.MEDIA_ROOT, str(event.image))
+            else:
+                image_path = None
+                
+            # Guardar el nombre del evento para el mensaje de confirmación
+            event_name = event.name
+            
+            # Eliminar el evento usando el repositorio
+            EventRepository.delete_event(event)
+            
+            # Si había una imagen asociada, eliminarla del sistema de archivos
+            if image_path and os.path.isfile(image_path):
+                os.remove(image_path)
+                
+            return event_name
         except Exception as e:
             logger.error(f"Error al eliminar evento: {str(e)}")
             raise
@@ -62,16 +81,44 @@ class EventService:
         """Obtener estadísticas para el panel de control"""
         # Estadísticas generales
         try:
+            # Consultas básicas
+            total_events = Event.objects.count()
+            upcoming_events = EventRepository.get_upcoming_events().count()
+            total_tickets = Ticket.objects.count()
+            used_tickets = Ticket.objects.filter(is_used=True).count()
+            paid_tickets = Ticket.objects.filter(is_paid=True).count()
+            total_users = User.objects.count()
+            total_revenue = PaymentRepository.get_total_revenue()
+            
+            # Eventos populares con datos reales
+            popular_events = EventRepository.get_events_by_popularity(limit=5)
+            
+            # Ventas por evento con datos reales
+            sales_by_event = EventRepository.get_revenue_by_event(limit=10)
+            
+            # Distribución de tipos de entradas
+            ticket_type_distribution = EventRepository.get_ticket_type_distribution()
+            
+            # Reutilizar el objeto TicketRepository para eventos con pocos asientos restantes
+            events_with_low_availability = Event.objects.annotate(
+                available_seats=Sum('tickettype__available_quantity')
+            ).filter(
+                available_seats__lt=F('capacity') * 0.2,  # Menos del 20% disponible
+                event_date__gt=timezone.now()  # Solo eventos futuros
+            ).order_by('event_date')[:5]
+            
             stats = {
-                'total_events': Event.objects.count(),
-                'upcoming_events': EventRepository.get_upcoming_events().count(),
-                'total_tickets': Ticket.objects.count(),
-                'used_tickets': Ticket.objects.filter(is_used=True).count(),
-                'paid_tickets': Ticket.objects.filter(is_paid=True).count(),
-                'total_users': User.objects.count(),
-                'total_revenue': PaymentRepository.get_total_revenue(),
-                'popular_events': EventRepository.get_popular_events(),
-                'sales_by_event': EventRepository.get_sales_by_event()
+                'total_events': total_events,
+                'upcoming_events': upcoming_events,
+                'total_tickets': total_tickets,
+                'used_tickets': used_tickets,
+                'paid_tickets': paid_tickets,
+                'total_users': total_users,
+                'total_revenue': total_revenue,
+                'popular_events': popular_events,
+                'sales_by_event': sales_by_event,
+                'ticket_type_distribution': ticket_type_distribution,
+                'events_with_low_availability': events_with_low_availability
             }
             return stats
         except Exception as e:
@@ -86,7 +133,8 @@ class EventService:
                 'total_users': 0,
                 'total_revenue': 0,
                 'popular_events': [],
-                'sales_by_event': []
+                'sales_by_event': [],
+                'ticket_type_distribution': []
             }
 
 

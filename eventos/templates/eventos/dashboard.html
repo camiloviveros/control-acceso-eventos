@@ -70,6 +70,13 @@
         </div>
     </div>
     
+    <!-- Botón para ver estadísticas detalladas -->
+    <div class="text-center mt-4 mb-5">
+        <a href="{% url 'eventos:detailed_stats' %}" class="btn btn-primary btn-lg">
+            <i class="fas fa-chart-pie me-2"></i>Ver Estadísticas Detalladas
+        </a>
+    </div>
+    
     <!-- Eventos Populares -->
     <div class="card mb-5">
         <div class="card-header bg-light">
@@ -95,7 +102,7 @@
                             <td>{{ event.event_date|date:"d/m/Y H:i" }}</td>
                             <td>{{ event.location }}</td>
                             <td>{{ event.ticket_count }}</td>
-                            <td>{{ event.revenue|default:"0.00" }} €</td>
+                            <td>$ {{ event.revenue|default:"0.00" }} COP</td>
                             <td>
                                 <a href="{% url 'eventos:event_detail' event.id %}" class="btn btn-sm btn-primary">
                                     <i class="fas fa-eye"></i>
@@ -172,85 +179,92 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Datos para los gráficos (en una aplicación real, estos datos vendrían del backend)
-        const eventNames = [{% for event in popular_events %}'{{ event.name|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-        const ticketCounts = [{% for event in popular_events %}{{ event.ticket_count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
-        const revenues = [{% for event in popular_events %}{{ event.revenue|default:"0.00" }}{% if not forloop.last %}, {% endif %}{% endfor %}];
-        
-        // Gráfico de Ventas por Evento
-        const eventSalesChart = document.getElementById('event-sales-chart');
-        if (eventSalesChart) {
-            new Chart(eventSalesChart, {
-                type: 'bar',
-                data: {
-                    labels: eventNames,
-                    datasets: [{
-                        label: 'Entradas Vendidas',
-                        data: ticketCounts,
-                        backgroundColor: 'rgba(67, 97, 238, 0.6)',
-                        borderColor: 'rgba(67, 97, 238, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                        },
-                        title: {
-                            display: true,
-                            text: 'Entradas Vendidas por Evento'
-                        }
+document.addEventListener('DOMContentLoaded', function() {
+    // Datos para los gráficos desde el backend
+    const eventNames = [{% for event in popular_events %}'{{ event.name|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const ticketCounts = [{% for event in popular_events %}{{ event.tickets_sold|default:"0" }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const revenues = [{% for event in sales_by_event %}{{ event.revenue|default:"0.00" }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    
+    // Datos para el gráfico de tipos de entradas
+    const ticketTypeNames = [{% for item in ticket_type_distribution %}'{{ item.name|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const ticketTypeCounts = [{% for item in ticket_type_distribution %}{{ item.tickets_sold }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    
+    // Gráfico de Ventas por Evento
+    const eventSalesChart = document.getElementById('event-sales-chart');
+    if (eventSalesChart) {
+        new Chart(eventSalesChart, {
+            type: 'bar',
+            data: {
+                labels: eventNames,
+                datasets: [{
+                    label: 'Entradas Vendidas',
+                    data: ticketCounts,
+                    backgroundColor: 'rgba(67, 97, 238, 0.6)',
+                    borderColor: 'rgba(67, 97, 238, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
+                    title: {
+                        display: true,
+                        text: 'Entradas Vendidas por Evento'
                     }
-                }
-            });
-        }
-        
-        // Gráfico de Tipos de Entradas
-        const ticketTypesChart = document.getElementById('ticket-types-chart');
-        if (ticketTypesChart) {
-            // En una aplicación real, estos datos vendrían del backend
-            new Chart(ticketTypesChart, {
-                type: 'pie',
-                data: {
-                    labels: ['VIP', 'General', 'Estudiante'],
-                    datasets: [{
-                        label: 'Tipos de Entradas',
-                        data: [30, 50, 20],
-                        backgroundColor: [
-                            'rgba(67, 97, 238, 0.6)',
-                            'rgba(46, 196, 182, 0.6)',
-                            'rgba(255, 159, 28, 0.6)'
-                        ],
-                        borderColor: [
-                            'rgba(67, 97, 238, 1)',
-                            'rgba(46, 196, 182, 1)',
-                            'rgba(255, 159, 28, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
                 },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'right',
-                        },
-                        title: {
-                            display: true,
-                            text: 'Distribución de Tipos de Entradas'
-                        }
+                scales: {
+                    y: {
+                        beginAtZero: true
                     }
                 }
-            });
-        }
-    });
+            }
+        });
+    }
+    
+    // Gráfico de Tipos de Entradas
+    const ticketTypesChart = document.getElementById('ticket-types-chart');
+    if (ticketTypesChart) {
+        new Chart(ticketTypesChart, {
+            type: 'pie',
+            data: {
+                labels: ticketTypeNames,
+                datasets: [{
+                    label: 'Tipos de Entradas',
+                    data: ticketTypeCounts,
+                    backgroundColor: [
+                        'rgba(67, 97, 238, 0.6)',
+                        'rgba(46, 196, 182, 0.6)',
+                        'rgba(255, 159, 28, 0.6)',
+                        'rgba(231, 29, 54, 0.6)',
+                        'rgba(0, 180, 216, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgba(67, 97, 238, 1)',
+                        'rgba(46, 196, 182, 1)',
+                        'rgba(255, 159, 28, 1)',
+                        'rgba(231, 29, 54, 1)',
+                        'rgba(0, 180, 216, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Distribución de Tipos de Entradas'
+                    }
+                }
+            }
+        });
+    }
+});
 </script>
 {% endblock %}

@@ -111,6 +111,60 @@ class EventRepository:
             return Event.objects.none()
     
     @staticmethod
+    def get_categories():
+        """Obtener todas las categorías de eventos"""
+        try:
+            return Event.objects.values_list('category', flat=True).distinct()
+        except Exception as e:
+            logger.error(f"Error al obtener categorías de eventos: {str(e)}")
+            return []
+    
+    @staticmethod
+    def get_events_by_category(category):
+        """Obtener eventos filtrados por categoría"""
+        try:
+            return Event.objects.filter(category=category)
+        except Exception as e:
+            logger.error(f"Error al obtener eventos por categoría {category}: {str(e)}")
+            return Event.objects.none()
+    
+    @staticmethod
+    def get_events_by_popularity(limit=10):
+        """Obtener eventos ordenados por cantidad de entradas vendidas"""
+        try:
+            return Event.objects.annotate(
+                tickets_sold=Count('tickettype__ticket', filter=Q(tickettype__ticket__is_paid=True))
+            ).order_by('-tickets_sold')[:limit]
+        except Exception as e:
+            logger.error(f"Error al obtener eventos por popularidad: {str(e)}")
+            return Event.objects.none()
+    
+    @staticmethod
+    def get_revenue_by_event(limit=10):
+        """Obtener ingresos por evento"""
+        try:
+            return Event.objects.annotate(
+                revenue=Sum(
+                    'tickettype__ticket__ticket_type__price', 
+                    filter=Q(tickettype__ticket__is_paid=True)
+                )
+            ).exclude(revenue__isnull=True).order_by('-revenue')[:limit]
+        except Exception as e:
+            logger.error(f"Error al obtener ingresos por evento: {str(e)}")
+            return Event.objects.none()
+    
+    @staticmethod
+    def get_ticket_type_distribution():
+        """Obtener distribución de tipos de entradas vendidas"""
+        try:
+            return TicketType.objects.annotate(
+                tickets_sold=Count('ticket', filter=Q(ticket__is_paid=True))
+            ).values('name', 'tickets_sold').order_by('-tickets_sold')[:10]
+        except Exception as e:
+            logger.error(f"Error al obtener distribución de tipos de entradas: {str(e)}")
+            return []
+    
+    @staticmethod
     def save_event(event):
         """Guardar un evento en la base de datos"""
         try:

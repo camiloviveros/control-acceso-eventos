@@ -11,11 +11,12 @@ from django.db import transaction
 from django.urls import reverse
 from datetime import datetime
 from django.contrib.auth.models import User
-from django.db.models import Count, Sum
+from django.db.models import Count, Sum, Q, F
 
 import qrcode
 from io import BytesIO
 import logging
+import os
 
 from .models import Event, TicketType, Ticket, UserProfile, Payment
 from .forms import EventForm, TicketTypeForm, TicketPurchaseForm, UserRegistrationForm, UserProfileForm
@@ -207,8 +208,20 @@ def event_delete(request, pk):
     
     if request.method == 'POST':
         try:
+            # Guardar referencia a la imagen antes de eliminar el evento
+            if event.image:
+                from django.conf import settings
+                image_path = os.path.join(settings.MEDIA_ROOT, str(event.image))
+            else:
+                image_path = None
+                
             # Usar el servicio para eliminar el evento
             event_name = EventService.delete_event(event)
+            
+            # Si había una imagen asociada, eliminarla del sistema de archivos
+            if image_path and os.path.isfile(image_path):
+                os.remove(image_path)
+                
             messages.success(request, f'Evento "{event_name}" eliminado con éxito.')
             return redirect('eventos:event_list')
         except Exception as e:
@@ -233,6 +246,21 @@ def ticket_type_create(request, event_id):
         form = TicketTypeForm(request.POST)
         if form.is_valid():
             try:
+                # Calcular la cantidad total de entradas ya asignadas al evento
+                existing_capacity = TicketType.objects.filter(event=event).aggregate(
+                    total=Sum('available_quantity')
+                )['total'] or 0
+                
+                # Verificar que no se supere la capacidad total del evento
+                requested_capacity = form.cleaned_data['available_quantity']
+                if existing_capacity + requested_capacity > event.capacity:
+                    remaining_capacity = event.capacity - existing_capacity
+                    raise ValueError(
+                        f'La cantidad solicitada excede la capacidad disponible del evento. '
+                        f'Capacidad máxima: {event.capacity}, Ya asignada: {existing_capacity}, '
+                        f'Disponible para asignar: {remaining_capacity}'
+                    )
+                
                 # Usar el servicio para crear el tipo de entrada
                 ticket_type = TicketTypeService.create_ticket_type(event, form.save(commit=False))
                 messages.success(request, f'Tipo de entrada "{ticket_type.name}" creado con éxito.')
@@ -422,8 +450,8 @@ def ticket_detail(request, ticket_id):
 
 @login_required
 def my_tickets(request):
-    """Vista para mostrar las entradas del usuario"""
-    # Usar el repositorio para obtener las entradas del usuario
+    """Vista para mostrar las entradas del usuario con filtro por tipo de evento"""
+    # Obtener entradas base del usuario
     base_tickets = TicketRepository.get_tickets_by_user(request.user.id)
     
     # Filtrar por evento si se especifica
@@ -433,7 +461,14 @@ def my_tickets(request):
             event_id = int(event_id)
             base_tickets = TicketRepository.get_tickets_by_user_and_event(request.user.id, event_id)
         except (ValueError, TypeError):
-            pass  # Si el event_id no es un número válido, ignorar el filtro
+            pass
+    
+    # Filtrar por categoría de evento si se especifica
+    event_category = request.GET.get('category')
+    if event_category:
+        base_tickets = base_tickets.filter(
+            ticket_type__event__category=event_category
+        )
     
     # Filtrar por estado si se especifica
     status = request.GET.get('status')
@@ -445,11 +480,15 @@ def my_tickets(request):
     page = request.GET.get('page')
     tickets = paginator.get_page(page)
     
-    # Obtener eventos para el filtro desplegable usando el repositorio
-    # Eventos en los que el usuario tiene entradas
+    # Obtener eventos para el filtro desplegable
     events = Event.objects.filter(
         tickettype__ticket__user=request.user
     ).distinct()
+    
+    # Obtener categorías de eventos para filtro
+    categories = Event.objects.filter(
+        tickettype__ticket__user=request.user
+    ).values_list('category', flat=True).distinct()
     
     # Estadísticas rápidas
     stats = {
@@ -462,13 +501,27 @@ def my_tickets(request):
         ).distinct().count()
     }
     
+    # Añadir estadísticas por categoría
+    category_stats = {}
+    for category in categories:
+        count = base_tickets.filter(ticket_type__event__category=category).count()
+        category_name = dict(Event.CATEGORY_CHOICES).get(category, 'Otro')
+        category_stats[category] = {
+            'name': category_name,
+            'count': count
+        }
+    
+    stats['categories'] = category_stats
+    
     return render(request, 'eventos/my_tickets.html', {
         'tickets': tickets,
         'events': events,
+        'categories': categories,
         'selected_event': event_id,
+        'selected_category': event_category,
         'selected_status': status,
         'stats': stats,
-        'now': timezone.now()  # Pasar la fecha actual al template
+        'now': timezone.now()
     })
 
 
@@ -710,3 +763,14 @@ def dashboard(request):
         logger.error(f"Error en dashboard: {str(e)}")
         messages.error(request, f"Error al cargar el panel de control: {str(e)}")
         return redirect('/')
+
+
+@staff_member_required
+def detailed_stats(request):
+    """Vista de estadísticas detalladas para administradores"""
+    from .statistics import EventStatisticsService
+    
+    # Obtener estadísticas detalladas
+    stats = EventStatisticsService.get_detailed_dashboard_stats()
+    
+    return render(request, 'eventos/detailed_stats.html', stats)
