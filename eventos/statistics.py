@@ -1,4 +1,4 @@
-# eventos/statistics.py (nuevo archivo)
+
 
 from django.db.models import Count, Sum, Q, F
 from django.utils import timezone

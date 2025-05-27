@@ -1,4 +1,3 @@
-# eventos/repositories.py
 
 from django.db.models import Q, Count, Sum, F, Prefetch
 from django.utils import timezone
